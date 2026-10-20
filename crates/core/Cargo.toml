@@ -16,6 +16,11 @@ similar = "2"
 async-trait = "0.1"
 tokio = { version = "1", features = ["time", "macros", "rt-multi-thread"] }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+whisper-rs = "0.16"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+whisper-rs = { version = "0.16", features = ["metal"] }
 
 [dev-dependencies]
+hound = "3.5.1"
 tempfile = "3"
