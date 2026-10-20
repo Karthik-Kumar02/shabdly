@@ -37,3 +37,5 @@ objc2-foundation = { version = "0.3", default-features = false, features = ["NSS
 
 [target.'cfg(target_os = "windows")'.dependencies]
 rdev = "0.5.3"
+uiautomation = "0.25.1"
+windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging", "Win32_System_Threading"] }

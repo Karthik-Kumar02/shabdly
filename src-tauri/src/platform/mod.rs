@@ -37,6 +37,18 @@ pub trait Platform: Send + Sync {
 pub mod fake;
 #[cfg(target_os = "macos")]
 pub mod macos;
+#[cfg(target_os = "windows")]
+pub mod windows;
+
+/// The adapter for the OS this build targets.
+pub fn current() -> std::sync::Arc<dyn Platform> {
+    #[cfg(target_os = "macos")]
+    return std::sync::Arc::new(macos::MacPlatform::new());
+    #[cfg(target_os = "windows")]
+    return std::sync::Arc::new(windows::WindowsPlatform::new());
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    return std::sync::Arc::new(fake::FakePlatform::new(vec![None]));
+}
 
 /// How long the target app gets to read the clipboard before we restore it.
 const PASTE_SETTLE: std::time::Duration = std::time::Duration::from_millis(150);
