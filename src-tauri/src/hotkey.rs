@@ -151,7 +151,11 @@ pub fn spawn(key: String, tx: Sender<HotkeyEvent>) -> anyhow::Result<Hotkey> {
 #[cfg(target_os = "macos")]
 mod backend {
     use super::Raw;
-    use core_foundation::runloop::CFRunLoop;
+    use core_foundation::base::TCFType;
+    use core_foundation::runloop::{CFRunLoop, kCFRunLoopCommonModes};
+    use std::ffi::c_void;
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicPtr, Ordering};
     use core_graphics::event::{
         CGEventTap, CGEventTapLocation, CGEventTapOptions, CGEventTapPlacement, CGEventType, CallbackResult,
         EventField,
@@ -202,9 +206,17 @@ mod backend {
         })
     }
 
-    pub fn listen(feed: impl Fn(Raw, bool) + 'static, ready: Sender<anyhow::Result<()>>) {
-        let ready2 = ready.clone();
-        let res = CGEventTap::with_enabled(
+    #[link(name = "ApplicationServices", kind = "framework")]
+    unsafe extern "C" {
+        fn CGEventTapEnable(tap: *mut c_void, enable: bool);
+    }
+
+    pub fn listen(feed: impl Fn(Raw, bool) + Send + 'static, ready: Sender<anyhow::Result<()>>) {
+        // macOS switches a tap off after a slow callback or during secure
+        // input; it must be switched back on or the hotkey dies until restart.
+        let port = Arc::new(AtomicPtr::<c_void>::new(std::ptr::null_mut()));
+        let port_cb = port.clone();
+        let tap = CGEventTap::new(
             CGEventTapLocation::Session,
             CGEventTapPlacement::HeadInsertEventTap,
             CGEventTapOptions::ListenOnly,
@@ -212,6 +224,12 @@ mod backend {
             move |_, ty, ev| {
                 let code = ev.get_integer_value_field(EventField::KEYBOARD_EVENT_KEYCODE);
                 match ty {
+                    CGEventType::TapDisabledByTimeout | CGEventType::TapDisabledByUserInput => {
+                        let p = port_cb.load(Ordering::SeqCst);
+                        if !p.is_null() {
+                            unsafe { CGEventTapEnable(p, true) };
+                        }
+                    }
                     CGEventType::KeyDown | CGEventType::KeyUp => {
                         if let Some(raw) = key_raw(code) {
                             feed(raw, matches!(ty, CGEventType::KeyDown));
@@ -226,14 +244,20 @@ mod backend {
                 }
                 CallbackResult::Keep
             },
-            move || {
-                let _ = ready2.send(Ok(()));
-                CFRunLoop::run_current();
-            },
         );
-        if res.is_err() {
+        let Ok(tap) = tap else {
             let _ = ready.send(Err(anyhow::anyhow!("macOS refused the key listener (Input Monitoring not granted)")));
-        }
+            return;
+        };
+        port.store(tap.mach_port().as_concrete_TypeRef() as *mut c_void, Ordering::SeqCst);
+        let Ok(source) = tap.mach_port().create_runloop_source(0) else {
+            let _ = ready.send(Err(anyhow::anyhow!("could not attach the key listener")));
+            return;
+        };
+        CFRunLoop::get_current().add_source(&source, unsafe { kCFRunLoopCommonModes });
+        tap.enable();
+        let _ = ready.send(Ok(()));
+        CFRunLoop::run_current();
     }
 }
 
@@ -272,7 +296,7 @@ mod backend {
         })
     }
 
-    pub fn listen(feed: impl Fn(Raw, bool) + 'static, ready: Sender<anyhow::Result<()>>) {
+    pub fn listen(feed: impl Fn(Raw, bool) + Send + 'static, ready: Sender<anyhow::Result<()>>) {
         let _ = ready.send(Ok(()));
         let _ = rdev::listen(move |e| match e.event_type {
             EventType::KeyPress(k) => raw(k).into_iter().for_each(|r| feed(r, true)),

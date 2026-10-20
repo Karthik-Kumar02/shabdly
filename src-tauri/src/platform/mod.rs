@@ -19,6 +19,9 @@ pub enum ClipboardSnapshot {
     Empty,
     Text(String),
     Image(arboard::ImageData<'static>),
+    /// Every item and every type on the clipboard, as raw bytes (files, rich
+    /// text, password-manager markers). Used where the OS allows it.
+    Items(Vec<Vec<(String, Vec<u8>)>>),
 }
 
 pub trait Platform: Send + Sync {
@@ -206,5 +209,34 @@ mod tests {
         p.restore_clipboard(snap);
         let back = arboard::Clipboard::new().unwrap().get_image().unwrap();
         assert_eq!((back.width, back.height), (3, 2));
+    }
+
+    /// Rich text and a password manager's "concealed" marker survive a paste.
+    #[cfg(target_os = "macos")]
+    #[test]
+    #[ignore]
+    fn clipboard_keeps_every_type() {
+        use objc2::runtime::ProtocolObject;
+        use objc2_app_kit::{NSPasteboard, NSPasteboardItem};
+        use objc2_foundation::{NSArray, NSData, NSString};
+        let p = super::macos::MacPlatform::new();
+        let users = p.snapshot_clipboard();
+        let pb = NSPasteboard::generalPasteboard();
+        let rtf = b"{\\rtf1 hi}".to_vec();
+        let item = NSPasteboardItem::new();
+        item.setData_forType(&NSData::with_bytes(&rtf), &NSString::from_str("public.rtf"));
+        item.setData_forType(&NSData::with_bytes(b"hi"), &NSString::from_str("public.utf8-plain-text"));
+        item.setData_forType(&NSData::with_bytes(b""), &NSString::from_str("org.nspasteboard.ConcealedType"));
+        pb.clearContents();
+        pb.writeObjects(&NSArray::from_retained_slice(&[ProtocolObject::from_retained(item)]));
+
+        let snap = p.snapshot_clipboard();
+        p.restore_clipboard(ClipboardSnapshot::Text("temporary".into()));
+        p.restore_clipboard(snap);
+        let back = pb.dataForType(&NSString::from_str("public.rtf")).map(|d| d.to_vec());
+        let concealed = pb.dataForType(&NSString::from_str("org.nspasteboard.ConcealedType")).is_some();
+        p.restore_clipboard(users);
+        assert_eq!(back, Some(rtf));
+        assert!(concealed, "concealed marker restored");
     }
 }

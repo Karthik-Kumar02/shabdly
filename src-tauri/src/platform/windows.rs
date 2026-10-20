@@ -98,6 +98,8 @@ impl Platform for WindowsPlatform {
             ClipboardSnapshot::Empty => c.clear(),
             ClipboardSnapshot::Text(t) => c.set_text(t),
             ClipboardSnapshot::Image(img) => c.set_image(img),
+            // ponytail: Windows snapshots text or image only; copy every clipboard format if files or rich text get lost.
+            ClipboardSnapshot::Items(_) => Ok(()),
         };
     }
 

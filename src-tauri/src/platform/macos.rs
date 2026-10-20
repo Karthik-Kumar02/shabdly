@@ -14,6 +14,9 @@ use core_foundation::boolean::CFBoolean;
 use core_foundation::dictionary::CFDictionary;
 use core_foundation::string::CFString;
 use enigo::{Direction, Enigo, Key, Keyboard, Settings};
+use objc2::runtime::ProtocolObject;
+use objc2_app_kit::{NSPasteboard, NSPasteboardItem};
+use objc2_foundation::{NSArray, NSData, NSString};
 
 #[link(name = "Carbon", kind = "framework")]
 unsafe extern "C" {
@@ -115,23 +118,51 @@ impl Platform for MacPlatform {
     }
 
     fn snapshot_clipboard(&self) -> ClipboardSnapshot {
-        let Some(mut c) = clipboard() else { return ClipboardSnapshot::Empty };
-        if let Ok(t) = c.get_text() {
-            return ClipboardSnapshot::Text(t);
-        }
-        match c.get_image() {
-            Ok(img) => ClipboardSnapshot::Image(img),
-            Err(_) => ClipboardSnapshot::Empty,
-        }
+        let pb = NSPasteboard::generalPasteboard();
+        let items: Vec<Vec<(String, Vec<u8>)>> = pb
+            .pasteboardItems()
+            .map(|items| {
+                items
+                    .iter()
+                    .map(|item| {
+                        item.types()
+                            .iter()
+                            .filter_map(|t| item.dataForType(&t).map(|d| (t.to_string(), d.to_vec())))
+                            .collect()
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        if items.iter().all(|i: &Vec<_>| i.is_empty()) { ClipboardSnapshot::Empty } else { ClipboardSnapshot::Items(items) }
     }
 
     fn restore_clipboard(&self, s: ClipboardSnapshot) {
-        let Some(mut c) = clipboard() else { return };
-        let _ = match s {
-            ClipboardSnapshot::Empty => c.clear(),
-            ClipboardSnapshot::Text(t) => c.set_text(t),
-            ClipboardSnapshot::Image(img) => c.set_image(img),
+        let pb = NSPasteboard::generalPasteboard();
+        let items = match s {
+            ClipboardSnapshot::Items(items) => items,
+            ClipboardSnapshot::Empty => vec![],
+            ClipboardSnapshot::Text(t) => vec![vec![("public.utf8-plain-text".to_string(), t.into_bytes())]],
+            ClipboardSnapshot::Image(img) => {
+                if let Some(mut c) = clipboard() {
+                    let _ = c.set_image(img);
+                }
+                return;
+            }
         };
+        pb.clearContents();
+        let objects: Vec<_> = items
+            .iter()
+            .map(|types| {
+                let item = NSPasteboardItem::new();
+                for (t, bytes) in types {
+                    item.setData_forType(&NSData::with_bytes(bytes), &NSString::from_str(t));
+                }
+                ProtocolObject::from_retained(item)
+            })
+            .collect();
+        if !objects.is_empty() {
+            pb.writeObjects(&NSArray::from_retained_slice(&objects));
+        }
     }
 
     fn paste(&self, text: &str) -> PasteOutcome {
