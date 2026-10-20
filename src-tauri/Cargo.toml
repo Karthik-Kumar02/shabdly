@@ -27,6 +27,8 @@ shabdly-core = { path = "../crates/core" }
 arboard = "3.7.0"
 enigo = "0.6.1"
 anyhow = "1.0.104"
+cpal = "0.18.2"
+tokio = { version = "1.54.0", features = ["rt-multi-thread", "macros", "time", "sync"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 accessibility-sys = "0.2.0"
@@ -39,3 +41,6 @@ objc2-foundation = { version = "0.3", default-features = false, features = ["NSS
 rdev = "0.5.3"
 uiautomation = "0.25.1"
 windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging", "Win32_System_Threading"] }
+
+[dev-dependencies]
+async-trait = "0.1.92"

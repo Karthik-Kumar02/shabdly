@@ -1,5 +1,8 @@
+pub mod capture;
+pub mod dictation;
 pub mod gesture;
 pub mod hotkey;
+pub mod observe;
 pub mod platform;
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/

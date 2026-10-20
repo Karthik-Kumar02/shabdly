@@ -56,10 +56,15 @@ const PASTE_SETTLE: std::time::Duration = std::time::Duration::from_millis(150);
 /// Insert `text` into the focused field (spec s3). Password fields and secure
 /// input get nothing typed; the text goes to the clipboard so it is not lost.
 pub fn insert(platform: &dyn Platform, text: &str) -> PasteOutcome {
+    insert_into(platform, text).0
+}
+
+/// `insert`, also returning the field it targeted (for observation afterward).
+pub fn insert_into(platform: &dyn Platform, text: &str) -> (PasteOutcome, Option<FieldText>) {
     let field = platform.focused_field();
     let copy = |outcome| {
         platform.restore_clipboard(ClipboardSnapshot::Text(text.to_string()));
-        outcome
+        (outcome, None)
     };
     let Some(field) = field else { return copy(PasteOutcome::Copied) };
     if field.is_password || platform.secure_input() {
@@ -74,7 +79,7 @@ pub fn insert(platform: &dyn Platform, text: &str) -> PasteOutcome {
         std::thread::sleep(PASTE_SETTLE);
         platform.restore_clipboard(before);
     }
-    outcome
+    (outcome, Some(field))
 }
 
 #[cfg(test)]

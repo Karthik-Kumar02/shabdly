@@ -22,9 +22,9 @@ impl FakePlatform {
         }
     }
 
-    /// Queue more focused-field values (what the user does after a paste).
-    pub fn push_fields(&self, more: Vec<Option<FieldText>>) {
-        self.fields.lock().unwrap().extend(more);
+    /// Replace the scripted focused-field values (what the user does next).
+    pub fn set_fields(&self, fields: Vec<Option<FieldText>>) {
+        *self.fields.lock().unwrap() = fields.into();
     }
 
     pub fn set_secure_input(&self, on: bool) {
