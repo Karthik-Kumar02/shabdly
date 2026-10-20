@@ -150,6 +150,7 @@ button.primary:hover:not(:disabled), .addform button:hover { background: var(--p
 .hint { color: var(--muted); margin: -8px 0 16px; font-size: 13px; }
 .status { min-height: 1.4em; color: var(--muted); margin: 4px 0 10px; }
 .status.bad { color: var(--bad); }
+#globe:empty { display: none; }
 .status button { color: var(--fg); margin-left: 4px; padding: 3px 12px; font-size: 12px; }
 .keyrow { display: flex; gap: 8px; align-items: end; }
 .keyrow label { flex: 1; }
