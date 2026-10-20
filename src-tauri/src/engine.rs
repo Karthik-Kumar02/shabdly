@@ -73,6 +73,12 @@ impl LazyAsr {
     pub fn preload(&self) {
         let _ = self.with_model(|_| Ok(()));
     }
+
+    /// Free the model. Its Metal buffers must be gone before exit, or ggml's static
+    /// Metal device destructor aborts the process (GGML_ASSERT on residency sets).
+    pub fn unload(&self) {
+        self.loaded.lock().unwrap_or_else(|e| e.into_inner()).take();
+    }
 }
 
 impl Transcriber for LazyAsr {

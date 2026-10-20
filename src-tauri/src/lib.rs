@@ -138,6 +138,7 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         }
         w.store(true, Ordering::SeqCst);
     });
+    app.manage(asr.clone());
     std::thread::spawn(move || asr.preload());
 
     if let Some(o) = app.get_webview_window("overlay") {
@@ -243,6 +244,9 @@ pub fn run() {
             tauri::async_runtime::block_on(async {
                 let _ = tokio::time::timeout(Duration::from_secs(1), unload(&OllamaProvider::default())).await;
             });
+            if let Some(asr) = app.try_state::<Arc<LazyAsr>>() {
+                asr.unload();
+            }
         }
     });
 }
