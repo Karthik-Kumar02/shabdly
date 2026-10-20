@@ -1,6 +1,7 @@
 ## What's new
 
-- Faster dictation: text appears about 0.8 s sooner when the language is set to Auto (language detection now checks the first 10 seconds instead of running a second full pass).
+- Mac: the app is now signed (self-signed, free), so macOS offers "Open Anyway" instead of saying the app is damaged.
+- Faster dictation (from 0.1.1): text appears about 0.8 s sooner when the language is set to Auto.
 
 ## Download
 
