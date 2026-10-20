@@ -43,9 +43,34 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+      # Sign with one fixed self-signed certificate, so macOS keeps Shabdly's
+      # Accessibility and microphone permissions across updates (ad-hoc builds lose them).
+      # Tauri's own APPLE_CERTIFICATE import only accepts Apple-issued names, hence this step.
+      # The certificate was made once with /usr/bin/openssl (LibreSSL, whose .p12 `security` can read):
+      #   openssl req -x509 -newkey rsa:2048 -nodes -days 7300 -keyout key.pem -out cert.pem -subj "/CN=Shabdly Self-Signed"
+      #     -addext "basicConstraints=critical,CA:false" -addext "keyUsage=critical,digitalSignature"
+      #     -addext "extendedKeyUsage=critical,codeSigning"
+      #   openssl pkcs12 -export -inkey key.pem -in cert.pem -out shabdly.p12
+      # and stored as secrets MACOS_CERTIFICATE (base64 of shabdly.p12) and MACOS_CERTIFICATE_PASSWORD.
+      # Keep shabdly.p12: a new certificate resets every user's permissions once.
+      - if: runner.os == 'macOS'
+        env:
+          CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+          CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+        run: |
+          KEYCHAIN="$RUNNER_TEMP/signing.keychain-db"
+          echo "$CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security create-keychain -p ci "$KEYCHAIN"
+          security unlock-keychain -p ci "$KEYCHAIN"
+          security set-keychain-settings -t 3600 -u "$KEYCHAIN"
+          security import "$RUNNER_TEMP/cert.p12" -f pkcs12 -k "$KEYCHAIN" -P "$CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k ci "$KEYCHAIN" > /dev/null
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
+          rm "$RUNNER_TEMP/cert.p12"
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          APPLE_SIGNING_IDENTITY: Shabdly Self-Signed
         with:
           releaseId: ${{ needs.create-release.outputs.id }}
           args: --bundles ${{ matrix.bundles }}
