@@ -88,16 +88,21 @@ pub async fn process(deps: &Deps, samples_16k: Vec<f32>) -> Outcome {
     }
     let settings = deps.settings.lock().unwrap().clone();
     let asr = deps.asr.clone();
+    let audio_ms = samples_16k.len() / 16;
+    let t = Instant::now();
     let raw = match tokio::task::spawn_blocking(move || asr.transcribe(&samples_16k, settings.language)).await {
         Ok(Ok(t)) => t.trim().to_string(),
         Ok(Err(e)) => return Outcome::Failed { message: format!("Speech recognition failed: {e}") },
         Err(e) => return Outcome::Failed { message: format!("Speech recognition failed: {e}") },
     };
+    let asr_ms = t.elapsed().as_millis();
     if raw.is_empty() {
         return Outcome::Empty;
     }
     let dict = deps.dict.lock().unwrap().clone();
+    let t = Instant::now();
     let cleaned = clean(&raw, &dict, settings.language, deps.provider.as_ref()).await;
+    let clean_ms = t.elapsed().as_millis();
     if !cleaned.used_words.is_empty() {
         let now = now_ms() / 1000;
         let mut d = deps.dict.lock().unwrap();
@@ -110,12 +115,20 @@ pub async fn process(deps: &Deps, samples_16k: Vec<f32>) -> Outcome {
 
     let platform = deps.platform.clone();
     let text = cleaned.text.clone();
+    let t = Instant::now();
     let (app, (pasted, field)) = tokio::task::spawn_blocking(move || {
         let app = platform.frontmost_app();
         (app, insert_into(platform.as_ref(), &text))
     })
     .await
     .unwrap_or((None, (PasteOutcome::Copied, None)));
+    // Stage times only, never the transcript.
+    eprintln!(
+        "timing: audio {audio_ms} ms, asr {asr_ms} ms, cleanup {clean_ms} ms{}, insert {} ms, words {}",
+        if cleaned.cleanup_skipped { " (skipped)" } else { "" },
+        t.elapsed().as_millis(),
+        raw.split_whitespace().count()
+    );
 
     let at_ms = now_ms();
     if settings.keep_history {
@@ -272,6 +285,7 @@ fn run(
             }
             Action::Stop => {
                 let (samples, channels, rate) = recorder.stop();
+                let released = Instant::now();
                 let mine = starts.load(Ordering::SeqCst);
                 let (deps, emit, warm, watching, pipeline, starts) =
                     (deps.clone(), emit.clone(), warm.clone(), watching.clone(), pipeline.clone(), starts.clone());
@@ -280,7 +294,9 @@ fn run(
                     let state = if warm.load(Ordering::SeqCst) { "processing" } else { "warming" };
                     overlay(&emit, state, None);
                     let samples = to_16k_mono(&samples, channels, rate);
+                    eprintln!("timing: release to asr start {} ms", released.elapsed().as_millis());
                     let outcome = process(&deps, samples).await;
+                    eprintln!("timing: release to done {} ms", released.elapsed().as_millis());
                     warm.store(true, Ordering::SeqCst);
                     let (at_ms, element_id, text) = match outcome {
                         Outcome::Inserted { text, cleanup_skipped, at_ms, element_id } => {

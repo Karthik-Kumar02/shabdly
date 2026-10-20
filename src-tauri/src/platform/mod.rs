@@ -91,7 +91,9 @@ pub fn insert(platform: &dyn Platform, text: &str) -> PasteOutcome {
 
 /// `insert`, also returning the field it targeted (for observation afterward).
 pub fn insert_into(platform: &dyn Platform, text: &str) -> (PasteOutcome, Option<FieldText>) {
+    let t = Instant::now();
     let field = platform.focused_field();
+    let field_ms = t.elapsed().as_millis();
     let copy = |outcome| {
         platform.restore_clipboard(ClipboardSnapshot::Text(text.to_string()));
         (outcome, None)
@@ -103,12 +105,15 @@ pub fn insert_into(platform: &dyn Platform, text: &str) -> (PasteOutcome, Option
     // ponytail: caret position unknown, so the end of the value stands in for "before the caret".
     let needs_space = field.value.chars().last().is_some_and(|c| !c.is_whitespace());
     let text = if needs_space { format!(" {text}") } else { text.to_string() };
+    let t = Instant::now();
     let before = platform.snapshot_clipboard();
     let outcome = platform.paste(&text);
+    let sent = t.elapsed().as_millis();
     if outcome == PasteOutcome::Pasted {
         wait_for_paste(platform, text.trim());
         platform.restore_clipboard(before);
     }
+    eprintln!("timing: field read {field_ms} ms, paste sent {sent} ms, landed+restored {} ms", t.elapsed().as_millis());
     (outcome, Some(field))
 }
 
