@@ -42,13 +42,18 @@ impl Default for OllamaProvider {
 impl OllamaProvider {
     /// One chat call. `keep_alive` -1 keeps the model loaded, 0 unloads it.
     pub(crate) async fn chat(&self, system: &str, text: &str, keep_alive: i64) -> anyhow::Result<Value> {
-        let body = json!({
-            "model": self.model, "stream": false, "keep_alive": keep_alive, "think": false,
-            "options": {"temperature": 0},
-            "messages": [{"role": "system", "content": system}, {"role": "user", "content": text}],
-        });
+        let body = ollama_body(&self.model, system, text, keep_alive);
         post(client().post(format!("{}/api/chat", self.base_url)).json(&body)).await
     }
+}
+
+pub fn ollama_body(model: &str, system: &str, text: &str, keep_alive: i64) -> Value {
+    json!({
+        "model": model, "stream": false, "keep_alive": keep_alive, "think": false,
+        // Room for a several-minute transcript plus 200 dictionary hints.
+        "options": {"temperature": 0, "num_ctx": 8192},
+        "messages": [{"role": "system", "content": system}, {"role": "user", "content": text}],
+    })
 }
 
 pub fn parse_ollama(v: &Value) -> anyhow::Result<String> {
@@ -104,8 +109,11 @@ pub struct HaikuProvider {
 }
 
 pub fn parse_anthropic(v: &Value) -> anyhow::Result<String> {
-    if v.get("stop_reason").and_then(Value::as_str) == Some("refusal") {
-        bail!("model refused");
+    match v.get("stop_reason").and_then(Value::as_str) {
+        Some("refusal") => bail!("model refused"),
+        // Cut-off text must not be inserted as if complete; the raw transcript is used instead.
+        Some("max_tokens") => bail!("cleanup output was cut off"),
+        _ => {}
     }
     let blocks = v.get("content").and_then(Value::as_array).ok_or_else(|| anyhow!("no content"))?;
     let text: String = blocks
@@ -123,7 +131,7 @@ impl CleanupProvider for HaikuProvider {
     }
     async fn clean(&self, system: &str, text: &str) -> anyhow::Result<String> {
         let body = json!({
-            "model": "claude-haiku-5-5", "max_tokens": 1024, "output_config": {"effort": "low"},
+            "model": "claude-haiku-5-5", "max_tokens": 16000, "output_config": {"effort": "low"},
             "system": system, "messages": [{"role": "user", "content": text}],
         });
         let req = client()

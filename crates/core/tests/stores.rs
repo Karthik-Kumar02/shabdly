@@ -109,3 +109,20 @@ fn save_load_roundtrip_and_missing_file_default() {
     assert_eq!(back.entries.len(), 1);
     assert!(!path.with_extension("json.tmp").exists());
 }
+
+#[test]
+fn corrupt_file_is_set_aside_not_overwritten() {
+    use shabdly_core::store::load_or_set_aside;
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("dictionary.json");
+    std::fs::write(&path, "{ not json").unwrap();
+    let d: shabdly_core::dictionary::Dictionary = load_or_set_aside(&path);
+    assert!(d.entries.is_empty());
+    assert!(!path.exists(), "bad file moved out of the way");
+    let kept: Vec<_> = std::fs::read_dir(dir.path()).unwrap().map(|e| e.unwrap().file_name().into_string().unwrap()).collect();
+    assert!(kept.iter().any(|n| n.starts_with("dictionary.json.bad-")), "{kept:?}");
+    assert_eq!(std::fs::read_to_string(dir.path().join(&kept[0])).unwrap(), "{ not json");
+    // A missing file is just the default, nothing set aside.
+    let _: shabdly_core::dictionary::Dictionary = load_or_set_aside(&dir.path().join("history.json"));
+    assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 1);
+}

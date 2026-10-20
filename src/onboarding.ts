@@ -6,6 +6,8 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { HOTKEYS, LANGUAGES, type Settings, esc, isMac, options } from "./main";
 
 type Step = (card: HTMLElement, next: () => void) => Promise<void> | void;
+
+export const GLOBE_WARNING = `macOS also acts on the Fn (Globe) key, which can open the emoji picker while you dictate. In Keyboard settings, set "Press Globe key to" to "Do Nothing". <button>Open Keyboard settings</button>`;
 type Progress = { kind: "model" | "whisper"; done: number; total: number };
 
 const gb = (n: number) => (n / 1e9).toFixed(1);
@@ -41,7 +43,9 @@ const microphone: Step = (card, next) => {
     if (await invoke<boolean>("request_microphone")) return next();
     const st = card.querySelector<HTMLElement>("#st")!;
     st.className = "status bad";
-    st.innerHTML = `Shabdly could not open a microphone. ${isMac ? `<button id="pane">Open Microphone settings</button>` : "Check that one is connected."}`;
+    st.innerHTML = isMac
+      ? `Shabdly can't hear the microphone yet. Click Allow if macOS asks, then click Allow microphone again. Still nothing? <button id="pane">Open Microphone settings</button>`
+      : `Shabdly can't hear a microphone. Check that one is connected and allowed. <button id="pane">Open Microphone settings</button>`;
     card.querySelector("#pane")?.addEventListener("click", () => invoke("open_settings_pane", { pane: "microphone" }));
   });
 };
@@ -180,10 +184,17 @@ const practice: Step = async (card, next) => {
     <p><strong id="say">Hold ${esc(s.hotkey)} and say hello</strong></p>
     <textarea class="practice" placeholder="Your words appear here"></textarea>
     <div id="health" class="status"></div>
+    <div id="globe" class="status bad"></div>
     <button class="primary" id="done">Finish</button>`;
   const box = card.querySelector<HTMLTextAreaElement>("textarea")!;
   const health = card.querySelector<HTMLElement>("#health")!;
+  const globe = async () => {
+    const el = card.querySelector<HTMLElement>("#globe")!;
+    el.innerHTML = (await invoke<boolean>("globe_key_warning")) ? GLOBE_WARNING : "";
+    el.querySelector("button")?.addEventListener("click", () => invoke("open_settings_pane", { pane: "keyboard" }));
+  };
   const watch = async () => {
+    globe();
     health.className = "status";
     health.textContent = "";
     box.focus();
@@ -208,8 +219,9 @@ const practice: Step = async (card, next) => {
   watch();
 };
 
-export function startOnboarding(root: HTMLElement, done: () => void) {
-  const steps: Step[] = [welcome, microphone, ...(isMac ? [accessibility] : []), engine, whisper, practice];
+// "speech_model": settings exist but the chosen speech model is missing.
+export function startOnboarding(root: HTMLElement, done: () => void, only?: "speech_model") {
+  const steps: Step[] = only ? [whisper] : [welcome, microphone, ...(isMac ? [accessibility] : []), engine, whisper, practice];
   let i = 0;
   const show = () => {
     if (i >= steps.length) return done();

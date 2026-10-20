@@ -1,7 +1,8 @@
 // Settings, Dictionary and History tabs. No framework: each tab re-renders
 // itself from the backend after every change.
 import { invoke } from "@tauri-apps/api/core";
-import { startOnboarding } from "./onboarding";
+import { listen } from "@tauri-apps/api/event";
+import { GLOBE_WARNING, startOnboarding } from "./onboarding";
 
 export type Settings = {
   version: number;
@@ -84,7 +85,9 @@ async function renderSettings(root: HTMLElement) {
         : `<p class="hint">Everything stays on this computer.</p>`
     }
     <label>Dictation key<select id="hotkey">${options(HOTKEYS.map((k) => [k, k] as [string, string]), s.hotkey)}</select></label>
+    <p id="globe" class="status bad"></p>
     <label>Speech model<select id="model">${options(MODELS, s.whisper_model)}</select></label>
+    <div id="dl"></div>
     <label class="check"><input id="learn" type="checkbox" ${s.learn_from_corrections ? "checked" : ""}> Learn from my corrections</label>
     <label class="check"><input id="keep" type="checkbox" ${s.keep_history ? "checked" : ""}> Keep history</label>
     <p id="status" class="status"></p>`;
@@ -102,8 +105,42 @@ async function renderSettings(root: HTMLElement) {
   const val = (id: string) => root.querySelector<HTMLSelectElement>(id)!.value;
   root.querySelector("#language")!.addEventListener("change", () => save({ language: val("#language") as Settings["language"] }));
   root.querySelector("#provider")!.addEventListener("change", () => save({ provider: val("#provider") as Settings["provider"] }, true));
-  root.querySelector("#hotkey")!.addEventListener("change", () => save({ hotkey: val("#hotkey") }));
-  root.querySelector("#model")!.addEventListener("change", () => save({ whisper_model: val("#model") }));
+  const globe = async () => {
+    const el = root.querySelector<HTMLElement>("#globe")!;
+    el.innerHTML = (await invoke<boolean>("globe_key_warning")) ? GLOBE_WARNING : "";
+    el.querySelector("button")?.addEventListener("click", () => invoke("open_settings_pane", { pane: "keyboard" }));
+  };
+  globe();
+  root.querySelector("#hotkey")!.addEventListener("change", async () => {
+    await save({ hotkey: val("#hotkey") });
+    globe();
+  });
+  // A model that is not on disk yet is downloaded before it is selected.
+  root.querySelector("#model")!.addEventListener("change", async () => {
+    const name = val("#model");
+    const select = root.querySelector<HTMLSelectElement>("#model")!;
+    if (!(await invoke<boolean>("whisper_ready", { name }))) {
+      const box = root.querySelector<HTMLElement>("#dl")!;
+      box.innerHTML = `<div class="progress"><div></div></div>`;
+      const bar = box.querySelector<HTMLElement>(".progress > div")!;
+      select.disabled = true;
+      const stop = await listen<{ kind: string; done: number; total: number }>("setup-progress", ({ payload }) => {
+        if (payload.kind === "whisper" && payload.total) bar.style.width = `${(100 * payload.done) / payload.total}%`;
+      });
+      try {
+        await invoke("download_whisper", { name });
+      } catch (e) {
+        flash(status, String(e), true);
+        select.value = s.whisper_model;
+        return;
+      } finally {
+        stop();
+        box.innerHTML = "";
+        select.disabled = false;
+      }
+    }
+    save({ whisper_model: name });
+  });
   root.querySelector("#learn")!.addEventListener("change", (e) => save({ learn_from_corrections: (e.target as HTMLInputElement).checked }));
   root.querySelector("#keep")!.addEventListener("change", (e) => save({ keep_history: (e.target as HTMLInputElement).checked }));
   root.querySelector("#savekey")?.addEventListener("click", async () => {
@@ -260,4 +297,6 @@ window.addEventListener("focus", () => {
   if (current !== "Settings") renderers[current](document.getElementById("panel")!);
 });
 
-invoke<boolean>("needs_setup").then((setup) => (setup ? startOnboarding(app, renderApp) : renderApp()));
+invoke<"first_run" | "speech_model" | null>("needs_setup").then((setup) =>
+  setup ? startOnboarding(app, renderApp, setup === "speech_model" ? "speech_model" : undefined) : renderApp(),
+);

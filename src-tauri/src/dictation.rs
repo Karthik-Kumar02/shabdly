@@ -24,6 +24,12 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 /// Below this RMS the recording is treated as silence (Whisper invents text for silence).
 const SILENCE_RMS: f32 = 0.002;
 
+pub const MIC_BLOCKED: &str = if cfg!(target_os = "macos") {
+    "Shabdly can't hear your microphone. Allow it in System Settings, Privacy & Security, Microphone."
+} else {
+    "Shabdly can't hear your microphone. Check that it is connected and allowed in Privacy settings."
+};
+
 pub struct Deps {
     pub platform: Arc<dyn Platform>,
     pub asr: Arc<dyn Transcriber>,
@@ -72,6 +78,11 @@ impl Deps {
 
 /// Speech to inserted text.
 pub async fn process(deps: &Deps, samples_16k: Vec<f32>) -> Outcome {
+    // A real microphone always has some noise; exact zeros mean the OS is
+    // withholding audio (permission denied on macOS).
+    if !samples_16k.is_empty() && samples_16k.iter().all(|s| *s == 0.0) {
+        return Outcome::Failed { message: MIC_BLOCKED.into() };
+    }
     if samples_16k.is_empty() || rms(&samples_16k) < SILENCE_RMS {
         return Outcome::Empty;
     }
@@ -381,7 +392,7 @@ pub(crate) mod tests {
 
     #[tokio::test]
     async fn correction_is_learned_and_used_next_time() {
-        let p = Arc::new(FakePlatform::new(vec![field("", 1), field("ask kartik now", 1), field("ask Karthik now", 1)]));
+        let p = Arc::new(FakePlatform::new(vec![field("", 1), field("ask kartik now", 1), field("ask kartik now", 1), field("ask Karthik now", 1)]));
         let d = deps(p.clone(), "ask kartik now", Arc::new(Echo));
         let o = process(&d, speech()).await;
         let (at, id, text) = inserted(&o);
@@ -393,6 +404,18 @@ pub(crate) mod tests {
         p.set_fields(vec![field("", 2)]);
         process(&d, speech()).await;
         assert_eq!(p.pastes()[1], "ask Karthik now");
+    }
+
+    #[tokio::test]
+    async fn all_zero_audio_reports_blocked_microphone() {
+        let p = Arc::new(FakePlatform::new(vec![field("", 1)]));
+        let d = deps(p.clone(), "anything", Arc::new(Echo));
+        match process(&d, vec![0.0; 16_000]).await {
+            Outcome::Failed { message } => assert!(message.contains("microphone"), "{message}"),
+            other => panic!("expected Failed, got {other:?}"),
+        }
+        // Quiet but real input is still just silence.
+        assert_eq!(process(&d, vec![0.0001; 16_000]).await, Outcome::Empty);
     }
 
     #[tokio::test]
@@ -430,7 +453,7 @@ pub(crate) mod tests {
 
     #[tokio::test]
     async fn next_dictation_ends_previous_observation() {
-        let p = Arc::new(FakePlatform::new(vec![field("", 1), field("ask kartik now", 1), field("ask Karthik now", 1)]));
+        let p = Arc::new(FakePlatform::new(vec![field("", 1), field("ask kartik now", 1), field("ask kartik now", 1), field("ask Karthik now", 1)]));
         let d = deps(p.clone(), "ask kartik now", Arc::new(Echo));
         let (at, id, text) = inserted(&process(&d, speech()).await);
         let cancel = Arc::new(AtomicBool::new(false));
@@ -449,7 +472,7 @@ pub(crate) mod tests {
 
     #[tokio::test]
     async fn learning_off_learns_nothing() {
-        let p = Arc::new(FakePlatform::new(vec![field("", 1), field("ask kartik now", 1), field("ask Karthik now", 1)]));
+        let p = Arc::new(FakePlatform::new(vec![field("", 1), field("ask kartik now", 1), field("ask kartik now", 1), field("ask Karthik now", 1)]));
         let d = deps(p.clone(), "ask kartik now", Arc::new(Echo));
         d.settings.lock().unwrap().learn_from_corrections = false;
         let (at, id, text) = inserted(&process(&d, speech()).await);
@@ -459,7 +482,7 @@ pub(crate) mod tests {
 
     #[tokio::test]
     async fn history_off_stores_nothing() {
-        let p = Arc::new(FakePlatform::new(vec![field("", 1), field("ask kartik now", 1), field("ask Karthik now", 1)]));
+        let p = Arc::new(FakePlatform::new(vec![field("", 1), field("ask kartik now", 1), field("ask kartik now", 1), field("ask Karthik now", 1)]));
         let d = deps(p.clone(), "ask kartik now", Arc::new(Echo));
         d.settings.lock().unwrap().keep_history = false;
         let (at, id, text) = inserted(&process(&d, speech()).await);

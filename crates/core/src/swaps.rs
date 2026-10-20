@@ -32,12 +32,22 @@ struct Pattern {
 /// whole word or phrase, case-insensitive, longest first. Returns the new text
 /// and the dictionary words used, in order of first use.
 pub fn apply_swaps(text: &str, dict: &Dictionary) -> (String, Vec<String>) {
+    swap(text, dict, true)
+}
+
+/// Only the `heard_as` fixes, leaving `replace_with` snippets (addresses and
+/// the like) unexpanded. Used before cloud cleanup so snippets never leave the machine.
+pub fn apply_heard_swaps(text: &str, dict: &Dictionary) -> (String, Vec<String>) {
+    swap(text, dict, false)
+}
+
+fn swap(text: &str, dict: &Dictionary, expand_snippets: bool) -> (String, Vec<String>) {
     let mut patterns = Vec::new();
     for e in &dict.entries {
         for f in &e.heard_as {
             patterns.push(Pattern { form: f.chars().map(lower).collect(), insert: e.word.clone(), word: e.word.clone() });
         }
-        if let Some(r) = &e.replace_with {
+        if let (true, Some(r)) = (expand_snippets, &e.replace_with) {
             patterns.push(Pattern { form: e.word.chars().map(lower).collect(), insert: r.clone(), word: e.word.clone() });
         }
     }

@@ -10,12 +10,10 @@ pub mod platform;
 use commands::AppState;
 use dictation::{Controller, Deps, Emit, now_ms};
 use engine::{LazyAsr, SwitchProvider};
-use serde::de::DeserializeOwned;
 use shabdly_core::pipeline::{unload, warm_up};
 use shabdly_core::providers::OllamaProvider;
 use shabdly_core::settings::{ProviderKind, Settings};
 use shabdly_core::store;
-use std::path::Path;
 use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};
 use std::sync::mpsc::channel;
 use std::sync::{Arc, Mutex};
@@ -27,14 +25,6 @@ use tauri::{AppHandle, Emitter, LogicalSize, Manager, PhysicalPosition, RunEvent
 const OVERLAY_W: f64 = 240.0;
 const OVERLAY_H: f64 = 48.0;
 const OVERLAY_BOTTOM_GAP: f64 = 80.0;
-
-/// A corrupt file must not stop the app; fall back to defaults and say so.
-fn load_or_default<T: DeserializeOwned + Default>(path: &Path) -> T {
-    store::load(path).unwrap_or_else(|e| {
-        eprintln!("{e:#}; starting fresh");
-        T::default()
-    })
-}
 
 /// A monitor as (x, y, width, height, scale), all in physical pixels.
 type MonitorRect = (i32, i32, u32, u32, f64);
@@ -96,15 +86,15 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let data_dir = app.path().app_data_dir()?;
     std::fs::create_dir_all(data_dir.join("models"))?;
     let first_run = !data_dir.join("settings.json").exists();
-    let settings: Settings = load_or_default(&data_dir.join("settings.json"));
+    let settings: Settings = store::load_or_set_aside(&data_dir.join("settings.json"));
     let settings = Arc::new(Mutex::new(settings));
     let asr = Arc::new(LazyAsr::new(data_dir.join("models"), settings.clone()));
     let deps = Arc::new(Deps {
         platform: platform::current(),
         asr: asr.clone(),
         provider: Arc::new(SwitchProvider { settings: settings.clone() }),
-        dict: Arc::new(Mutex::new(load_or_default(&data_dir.join("dictionary.json")))),
-        history: Arc::new(Mutex::new(load_or_default(&data_dir.join("history.json")))),
+        dict: Arc::new(Mutex::new(store::load_or_set_aside(&data_dir.join("dictionary.json")))),
+        history: Arc::new(Mutex::new(store::load_or_set_aside(&data_dir.join("history.json")))),
         settings: settings.clone(),
         data_dir: Some(data_dir.clone()),
         poll: Duration::from_millis(250),
@@ -211,6 +201,7 @@ pub fn run() {
             commands::reinsert,
             commands::overlay_interactive,
             commands::needs_setup,
+            commands::globe_key_warning,
             commands::ollama_status,
             commands::pull_model,
             commands::whisper_ready,

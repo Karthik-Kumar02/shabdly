@@ -193,10 +193,39 @@ pub fn overlay_interactive(app: AppHandle, on: bool) {
 const OLLAMA_URL: &str = "http://localhost:11434";
 const LOCAL_MODEL: &str = "gemma4:e4b";
 
-/// True when settings.json does not exist yet: first-run setup has not finished.
+/// What setup still has to do: "first_run" (never finished) or
+/// "speech_model" (the selected Whisper model is missing), or None.
+pub fn setup_needed(dir: &std::path::Path, settings: &Settings) -> Option<&'static str> {
+    if !dir.join("settings.json").exists() {
+        Some("first_run")
+    } else if !dir.join("models").join(&settings.whisper_model).exists() {
+        Some("speech_model")
+    } else {
+        None
+    }
+}
+
 #[tauri::command]
-pub fn needs_setup(state: State<AppState>) -> bool {
-    state.deps.data_dir.as_ref().is_some_and(|d| !d.join("settings.json").exists())
+pub fn needs_setup(state: State<AppState>) -> Option<&'static str> {
+    let dir = state.deps.data_dir.as_ref()?;
+    setup_needed(dir, &state.deps.settings.lock().unwrap())
+}
+
+/// macOS "Press Globe key to" setting (AppleFnUsageType): anything but "Do
+/// Nothing" (0) makes a Fn tap open a menu or the emoji picker as well.
+pub fn globe_key_conflict(usage: Option<&str>) -> bool {
+    usage.is_some_and(|u| u.trim() != "0")
+}
+
+/// True when the dictation key is Fn and macOS also acts on the Globe key.
+#[tauri::command]
+pub fn globe_key_warning(state: State<AppState>) -> bool {
+    if !cfg!(target_os = "macos") || state.deps.settings.lock().unwrap().hotkey != "Fn" {
+        return false;
+    }
+    let out = std::process::Command::new("defaults").args(["read", "com.apple.HIToolbox", "AppleFnUsageType"]).output();
+    let usage = out.ok().filter(|o| o.status.success()).map(|o| String::from_utf8_lossy(&o.stdout).into_owned());
+    globe_key_conflict(usage.as_deref())
 }
 
 #[tauri::command]
@@ -250,32 +279,31 @@ pub fn accessibility_status(state: State<AppState>) -> bool {
 pub async fn request_microphone() -> bool {
     tauri::async_runtime::spawn_blocking(|| {
         let mut r = crate::capture::Recorder::default();
-        let ok = r.start(std::sync::mpsc::channel().0).is_ok();
-        std::thread::sleep(Duration::from_millis(300));
-        r.stop();
-        ok
+        if r.start(std::sync::mpsc::channel().0).is_err() {
+            return false;
+        }
+        std::thread::sleep(Duration::from_millis(400));
+        // All zeros: macOS is withholding audio (prompt pending or denied).
+        r.stop().0.iter().any(|s| *s != 0.0)
     })
     .await
     .unwrap_or(false)
 }
 
-/// Open a privacy page in System Settings (macOS); `pane` is
-/// "accessibility", "input_monitoring" or "microphone".
+/// Open an OS settings page: "accessibility", "input_monitoring", "keyboard"
+/// (macOS) or "microphone" (both).
 #[tauri::command]
 pub fn open_settings_pane(pane: String) -> CmdResult<()> {
-    let anchor = match pane.as_str() {
-        "accessibility" => "Privacy_Accessibility",
-        "input_monitoring" => "Privacy_ListenEvent",
-        "microphone" => "Privacy_Microphone",
+    let url = match (pane.as_str(), cfg!(target_os = "macos")) {
+        ("accessibility", true) => "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility",
+        ("input_monitoring", true) => "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent",
+        ("microphone", true) => "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone",
+        ("keyboard", true) => "x-apple.systempreferences:com.apple.Keyboard-Settings.extension",
+        ("microphone", false) => "ms-settings:privacy-microphone",
         _ => return Err("unknown settings page".into()),
     };
-    #[cfg(target_os = "macos")]
-    std::process::Command::new("open")
-        .arg(format!("x-apple.systempreferences:com.apple.preference.security?{anchor}"))
-        .spawn()
-        .map_err(msg)?;
-    #[cfg(not(target_os = "macos"))]
-    let _ = anchor;
+    let opener = if cfg!(target_os = "macos") { "open" } else { "explorer" };
+    std::process::Command::new(opener).arg(url).spawn().map_err(msg)?;
     Ok(())
 }
 
@@ -333,6 +361,27 @@ mod tests {
         assert_eq!(d.dict.lock().unwrap().get("Karthik").unwrap().heard_as, vec!["kartik"]);
         assert!(std::fs::read_to_string(dir.path().join("dictionary.json")).unwrap().contains("Karthik"));
         assert!(fix_word(&d, 99, "a", "b").is_err(), "unknown history item");
+    }
+
+    #[test]
+    fn setup_needed_when_settings_or_speech_model_missing() {
+        let dir = tempfile::tempdir().unwrap();
+        let s = Settings::default();
+        assert_eq!(setup_needed(dir.path(), &s), Some("first_run"));
+        std::fs::write(dir.path().join("settings.json"), "{}").unwrap();
+        assert_eq!(setup_needed(dir.path(), &s), Some("speech_model"));
+        std::fs::create_dir_all(dir.path().join("models")).unwrap();
+        std::fs::write(dir.path().join("models").join(&s.whisper_model), "x").unwrap();
+        assert_eq!(setup_needed(dir.path(), &s), None);
+    }
+
+    #[test]
+    fn globe_key_conflict_only_when_set_to_an_action() {
+        assert!(!globe_key_conflict(Some("0")));
+        assert!(globe_key_conflict(Some("2\n")));
+        assert!(globe_key_conflict(Some("1")));
+        // Not set: macOS default; Fn dictation worked on the developer's Mac with it.
+        assert!(!globe_key_conflict(None));
     }
 
     #[tokio::test]

@@ -4,7 +4,7 @@ use crate::dictionary::Dictionary;
 use crate::prompt::system_prompt;
 use crate::providers::{CleanupProvider, OllamaProvider};
 use crate::settings::Language;
-use crate::swaps::apply_swaps;
+use crate::swaps::{apply_heard_swaps, apply_swaps};
 use std::time::Duration;
 
 const WORDS_PER_STEP: usize = 150;
@@ -23,9 +23,10 @@ pub struct Cleaned {
 }
 
 pub async fn clean(raw: &str, dict: &Dictionary, lang: Language, provider: &dyn CleanupProvider) -> Cleaned {
-    // Swap before the model too: it transliterates Devanagari forms ("रिया" to
-    // "Rhea") so the post-cleanup pass alone would never see them.
-    let (pre, mut used_words) = apply_swaps(raw.trim(), dict);
+    // Fix heard-as forms before the model too: it transliterates Devanagari
+    // forms ("रिया" to "Rhea") so the post-cleanup pass alone would never see
+    // them. Snippets expand only afterward, so they never reach a provider.
+    let (pre, mut used_words) = apply_heard_swaps(raw.trim(), dict);
     let system = system_prompt(lang, &dict.hints(200));
     let limit = timeout_for(provider.base_timeout(), &pre);
     let model = match tokio::time::timeout(limit, provider.clean(&system, &pre)).await {

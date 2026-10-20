@@ -22,3 +22,17 @@ pub fn save<T: Serialize>(path: &Path, value: &T) -> anyhow::Result<()> {
     std::fs::rename(&tmp, path)?;
     Ok(())
 }
+
+/// Like `load`, but a file that cannot be read is renamed to
+/// `<name>.bad-<unix secs>` and the default returned, so the next save never
+/// overwrites the user's only copy.
+pub fn load_or_set_aside<T: DeserializeOwned + Default>(path: &Path) -> T {
+    load(path).unwrap_or_else(|e| {
+        let secs = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+        let mut bad = path.as_os_str().to_owned();
+        bad.push(format!(".bad-{secs}"));
+        eprintln!("{e:#}; kept the old file as {}", std::path::Path::new(&bad).display());
+        let _ = std::fs::rename(path, &bad);
+        T::default()
+    })
+}

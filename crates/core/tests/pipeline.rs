@@ -5,7 +5,7 @@ use serde_json::json;
 use shabdly_core::dictionary::Dictionary;
 use shabdly_core::pipeline::{clean, timeout_for};
 use shabdly_core::prompt::system_prompt;
-use shabdly_core::providers::{CleanupProvider, parse_anthropic, parse_gemini, parse_ollama};
+use shabdly_core::providers::{CleanupProvider, ollama_body, parse_anthropic, parse_gemini, parse_ollama};
 use shabdly_core::settings::Language;
 use std::time::Duration;
 
@@ -114,4 +114,41 @@ async fn pipeline_swaps_before_provider_too() {
     let c = clean("रिया वाला setup", &dict(), Language::Auto, &Fake::Translit).await;
     assert_eq!(c.text, "REA वाला setup");
     assert!(!c.cleanup_skipped);
+}
+
+/// Records what the provider was sent, and echoes it back.
+struct Capture(std::sync::Mutex<String>);
+
+#[async_trait]
+impl CleanupProvider for Capture {
+    fn base_timeout(&self) -> Duration {
+        Duration::from_millis(50)
+    }
+    async fn clean(&self, system: &str, text: &str) -> anyhow::Result<String> {
+        *self.0.lock().unwrap() = format!("{system}\n{text}");
+        Ok(text.to_string())
+    }
+}
+
+#[tokio::test]
+async fn snippets_never_reach_the_provider() {
+    let p = Capture(Default::default());
+    let c = clean("send it to addr please", &dict(), Language::Auto, &p).await;
+    let sent = p.0.lock().unwrap().clone();
+    assert!(!sent.contains("12 Park Street"), "provider saw the snippet: {sent}");
+    assert_eq!(c.text, "send it to 12 Park Street please");
+}
+
+#[test]
+fn parse_anthropic_truncated_is_error() {
+    let a = json!({"content": [{"type": "text", "text": "Half of the"}], "stop_reason": "max_tokens"});
+    assert!(parse_anthropic(&a).is_err());
+}
+
+#[test]
+fn ollama_request_sets_context_window() {
+    let b = ollama_body("gemma4:e4b", "sys", "hi", -1);
+    assert_eq!(b["options"]["num_ctx"], 8192);
+    assert_eq!(b["options"]["temperature"], 0);
+    assert_eq!(b["think"], false);
 }
