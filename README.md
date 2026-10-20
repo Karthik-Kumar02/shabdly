@@ -62,17 +62,17 @@ Everything runs on your own computer by default. No account, no subscription, no
 ### Mac (Apple Silicon: M1 or newer)
 
 1. Download the `.dmg` from the [latest release](https://github.com/Karthik-Kumar02/shabdly/releases/latest).
-2. Open it and drag **Shabdly** into **Applications**.
-3. Open **Terminal** and run this, so macOS lets Shabdly open. (Shabdly is not yet signed with a paid Apple certificate, so macOS blocks it otherwise.) Run it again after each update.
+2. Open **Terminal** and run this, so macOS lets you open it. (Shabdly is not yet signed with a paid Apple certificate, so macOS blocks it otherwise.) Run it again after each new download.
 
    ```bash
-   xattr -dr com.apple.quarantine /Applications/Shabdly.app
+   xattr -d com.apple.quarantine ~/Downloads/Shabdly_*.dmg
    ```
 
-4. Open Shabdly. On first launch, turn Shabdly on in **System Settings, Privacy & Security, Accessibility**, or it cannot paste your words.
+3. Open the `.dmg` and drag **Shabdly** into **Applications**.
+4. Open Shabdly. macOS does not ask for these permissions, so turn them on yourself: in **System Settings, Privacy & Security**, switch Shabdly on under both **Device Control** and **Data Access**. Without them it cannot paste your words. (On older macOS versions, the switch is under **Accessibility**.)
 5. Install [Ollama](https://ollama.com/download) for private, free cleanup. (Optional if you choose a cloud engine instead.)
 
-Updating from 0.1.3 or earlier: macOS forgets the Accessibility permission once. If pasting stops, remove Shabdly from **Accessibility** with the minus button, then add it again. Later updates keep it.
+Updating from 0.1.3 or earlier: macOS forgets these permissions once. If pasting stops, remove Shabdly from **Device Control** and **Data Access** with the minus button, then add it again. Later updates keep them.
 
 On an Intel Mac, [build from source](#build-from-source).
 
