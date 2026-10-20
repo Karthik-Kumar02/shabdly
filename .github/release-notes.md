@@ -1,7 +1,8 @@
 ## What's new
 
-- Mac: the app is now signed (self-signed, free), so macOS offers "Open Anyway" instead of saying the app is damaged. The microphone works in the signed app (0.1.2 lacked this; skip it).
-- Faster dictation (from 0.1.1): text appears about 0.8 s sooner when the language is set to Auto.
+- Mac: updates now keep Shabdly's Accessibility and microphone permissions (builds are signed with one fixed certificate). Updating from 0.1.3 or older resets them one last time.
+- Mac: quitting Shabdly no longer crashes.
+- Faster dictation (since 0.1.1): text appears about 0.8 s sooner when the language is set to Auto.
 
 ## Download
 
