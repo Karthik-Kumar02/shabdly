@@ -80,9 +80,6 @@ pub fn show_main(app: &AppHandle) {
 }
 
 fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
-    #[cfg(target_os = "macos")]
-    app.set_activation_policy(tauri::ActivationPolicy::Accessory);
-
     let data_dir = app.path().app_data_dir()?;
     std::fs::create_dir_all(data_dir.join("models"))?;
     let first_run = !data_dir.join("settings.json").exists();
@@ -219,7 +216,12 @@ pub fn run() {
         ])
         .build(tauri::generate_context!())
         .expect("error while building Shabdly");
-    app.run(|_, event| {
+    app.run(|app, event| {
+        // Clicking the Dock icon brings the settings window back.
+        #[cfg(target_os = "macos")]
+        if let RunEvent::Reopen { .. } = event {
+            show_main(app);
+        }
         if let RunEvent::Exit = event {
             // Free the local model's memory; never block quitting for long.
             tauri::async_runtime::block_on(async {

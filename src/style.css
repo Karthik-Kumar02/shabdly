@@ -94,8 +94,7 @@ main#panel, .card {
   -webkit-backdrop-filter: blur(24px) saturate(160%);
   backdrop-filter: blur(24px) saturate(160%);
 }
-main#panel, .card { padding: 22px 24px; animation: rise 0.32s cubic-bezier(0.2, 0.8, 0.2, 1); }
-@keyframes rise { from { opacity: 0; transform: translateY(6px); } }
+main#panel, .card { padding: 22px 24px; }
 
 nav {
   display: inline-flex;
@@ -158,7 +157,10 @@ button.primary:hover:not(:disabled), .addform button:hover { background: var(--p
 .row { display: flex; gap: 8px; margin: 14px 0; flex-wrap: wrap; }
 .row:last-child { margin-bottom: 0; }
 
-.addform { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 8px; }
+.addform { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; gap: 8px; }
+.addform input { width: 100%; min-width: 0; }
+.addform [name="heard"] { grid-column: 2 / span 2; }
+.addform [name="replace"] { grid-column: 1 / span 2; }
 .list { list-style: none; padding: 0; margin: 0; }
 .list li { display: flex; gap: 10px; align-items: flex-start; padding: 14px 2px; border-bottom: 1px solid var(--line); }
 .list li:last-child { border-bottom: 0; }
@@ -223,5 +225,5 @@ html:has(.overlay-body) { background: transparent; }
 @keyframes pulse { to { opacity: 0.55; } }
 @media (prefers-reduced-motion: reduce) {
   .spinner { animation-duration: 2s; }
-  .pill, .dot, main#panel, .card, body:not(.overlay-body)::before { animation: none; }
+  .pill, .dot, body:not(.overlay-body)::before { animation: none; }
 }
