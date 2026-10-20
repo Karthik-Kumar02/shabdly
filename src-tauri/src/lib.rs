@@ -152,14 +152,19 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let open = MenuItem::with_id(app, "open", "Open Shabdly", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "Quit Shabdly", true, None::<&str>)?;
     let menu = Menu::with_items(app, &[&open, &quit])?;
-    let mut tray = TrayIconBuilder::new().menu(&menu).tooltip("Shabdly").on_menu_event(|app, e| match e.id.as_ref() {
+    let tray = TrayIconBuilder::new().menu(&menu).tooltip("Shabdly").on_menu_event(|app, e| match e.id.as_ref() {
         "open" => show_main(app),
         "quit" => app.exit(0),
         _ => {}
     });
-    if let Some(icon) = app.default_window_icon() {
-        tray = tray.icon(icon.clone());
-    }
+    // macOS tints a template icon to match a light or dark menu bar.
+    #[cfg(target_os = "macos")]
+    let tray = tray.icon(tauri::include_image!("icons/tray.png")).icon_as_template(true);
+    #[cfg(not(target_os = "macos"))]
+    let tray = match app.default_window_icon() {
+        Some(icon) => tray.icon(icon.clone()),
+        None => tray,
+    };
     tray.build(app)?;
 
     app.manage(AppState { deps, hotkey: Mutex::new(hotkey), warm, last_hotkey_ms, hotkey_tx: raw_tx });
