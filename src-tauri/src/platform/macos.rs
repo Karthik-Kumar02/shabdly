@@ -2,10 +2,13 @@
 //! arboard for the clipboard, enigo for Cmd+V.
 use super::{ClipboardSnapshot, FieldText, PasteOutcome, Platform};
 use accessibility_sys::{
-    AXIsProcessTrustedWithOptions, AXUIElementCopyAttributeValue, AXUIElementCreateSystemWide, AXUIElementRef,
-    AXUIElementSetMessagingTimeout, kAXErrorSuccess, kAXFocusedUIElementAttribute, kAXRoleAttribute,
+    AXError, AXIsProcessTrustedWithOptions, AXUIElementCopyAttributeValue, AXUIElementCreateApplication,
+    AXUIElementCreateSystemWide, AXUIElementRef, AXUIElementSetAttributeValue, AXUIElementSetMessagingTimeout,
+    kAXErrorAPIDisabled, kAXErrorNoValue, kAXErrorSuccess, kAXFocusedUIElementAttribute, kAXRoleAttribute,
     kAXSecureTextFieldSubrole, kAXSubroleAttribute, kAXTrustedCheckOptionPrompt, kAXValueAttribute,
 };
+use std::collections::HashSet;
+use std::sync::Mutex;
 use core_foundation::base::{CFHash, CFType, CFTypeRef, TCFType};
 use core_foundation::boolean::CFBoolean;
 use core_foundation::dictionary::CFDictionary;
@@ -24,20 +27,50 @@ const NON_TEXT_ROLES: &[&str] =
 /// kVK_ANSI_V: the V key position, independent of keyboard layout.
 const KEY_V: u32 = 9;
 
-pub struct MacPlatform;
+pub struct MacPlatform {
+    /// Apps already asked to build their accessibility tree.
+    enabled: Mutex<HashSet<i32>>,
+}
 
 impl MacPlatform {
     pub fn new() -> Self {
-        MacPlatform
+        MacPlatform { enabled: Mutex::new(HashSet::new()) }
+    }
+
+    /// The frontmost app's AX element. Electron apps (Slack, VS Code, Claude...)
+    /// only expose their text once asked via AXManualAccessibility.
+    fn front_app_element(&self) -> Option<CFType> {
+        let pid = objc2_app_kit::NSWorkspace::sharedWorkspace().frontmostApplication()?.processIdentifier();
+        let app = unsafe { CFType::wrap_under_create_rule(AXUIElementCreateApplication(pid) as CFTypeRef) };
+        let el = app.as_CFTypeRef() as AXUIElementRef;
+        unsafe { AXUIElementSetMessagingTimeout(el, 0.25) };
+        if self.enabled.lock().unwrap().insert(pid) {
+            let key = CFString::new("AXManualAccessibility");
+            unsafe { AXUIElementSetAttributeValue(el, key.as_concrete_TypeRef(), CFBoolean::true_value().as_CFTypeRef()) };
+        }
+        Some(app)
     }
 }
 
-/// Owned AX attribute value, or None when the element does not expose it.
-fn attr(el: AXUIElementRef, name: &str) -> Option<CFType> {
+/// Owned AX attribute value, or the AX error when the element does not give it.
+fn attr_or_err(el: AXUIElementRef, name: &str) -> Result<CFType, AXError> {
     let key = CFString::new(name);
     let mut out: CFTypeRef = std::ptr::null();
     let err = unsafe { AXUIElementCopyAttributeValue(el, key.as_concrete_TypeRef(), &mut out) };
-    (err == kAXErrorSuccess && !out.is_null()).then(|| unsafe { CFType::wrap_under_create_rule(out) })
+    if err == kAXErrorSuccess && !out.is_null() { Ok(unsafe { CFType::wrap_under_create_rule(out) }) } else { Err(err) }
+}
+
+fn attr(el: AXUIElementRef, name: &str) -> Option<CFType> {
+    attr_or_err(el, name).ok()
+}
+
+/// The focused element could not be read. "Nothing focused" copies; so does
+/// Accessibility being off, because the paste keystroke would be dropped too.
+/// Anything else (an app still building its tree) pastes into an unknown field,
+/// which observation then skips.
+fn field_when_unreadable(err: AXError) -> Option<FieldText> {
+    (err != kAXErrorNoValue && err != kAXErrorAPIDisabled)
+        .then(|| FieldText { value: String::new(), is_password: false, element_id: 0 })
 }
 
 fn attr_string(el: AXUIElementRef, name: &str) -> Option<String> {
@@ -50,11 +83,16 @@ fn clipboard() -> Option<arboard::Clipboard> {
 
 impl Platform for MacPlatform {
     fn focused_field(&self) -> Option<FieldText> {
-        let system = unsafe { CFType::wrap_under_create_rule(AXUIElementCreateSystemWide() as CFTypeRef) };
-        let sys = system.as_CFTypeRef() as AXUIElementRef;
-        // A hung app must not hang dictation.
-        unsafe { AXUIElementSetMessagingTimeout(sys, 0.25) };
-        let focused = attr(sys, kAXFocusedUIElementAttribute)?;
+        let root = self.front_app_element().unwrap_or_else(|| {
+            let sys = unsafe { CFType::wrap_under_create_rule(AXUIElementCreateSystemWide() as CFTypeRef) };
+            // A hung app must not hang dictation.
+            unsafe { AXUIElementSetMessagingTimeout(sys.as_CFTypeRef() as AXUIElementRef, 0.25) };
+            sys
+        });
+        let focused = match attr_or_err(root.as_CFTypeRef() as AXUIElementRef, kAXFocusedUIElementAttribute) {
+            Ok(f) => f,
+            Err(e) => return field_when_unreadable(e),
+        };
         let el = focused.as_CFTypeRef() as AXUIElementRef;
         let role = attr_string(el, kAXRoleAttribute).unwrap_or_default();
         if NON_TEXT_ROLES.contains(&role.as_str()) {
@@ -115,5 +153,22 @@ impl Platform for MacPlatform {
         let key = unsafe { CFString::wrap_under_get_rule(kAXTrustedCheckOptionPrompt) };
         let opts = CFDictionary::from_CFType_pairs(&[(key, CFBoolean::from(prompt))]);
         unsafe { AXIsProcessTrustedWithOptions(opts.as_concrete_TypeRef()) }
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use accessibility_sys::{kAXErrorAPIDisabled, kAXErrorCannotComplete, kAXErrorNoValue};
+
+    #[test]
+    fn unknown_focus_still_pastes_but_no_focus_copies() {
+        // Electron apps answer "cannot complete" until their tree is built: paste anyway.
+        let f = field_when_unreadable(kAXErrorCannotComplete).expect("paste into the unknown field");
+        assert_eq!((f.value.as_str(), f.is_password, f.element_id), ("", false, 0));
+        // Nothing focused, or Accessibility off (the paste keystroke would be dropped): copy.
+        assert!(field_when_unreadable(kAXErrorNoValue).is_none());
+        assert!(field_when_unreadable(kAXErrorAPIDisabled).is_none());
     }
 }

@@ -36,17 +36,50 @@ fn load_or_default<T: DeserializeOwned + Default>(path: &Path) -> T {
     })
 }
 
-/// Bottom center of the monitor under the mouse, 80 px above its bottom edge.
+/// A monitor as (x, y, width, height, scale), all in physical pixels.
+type MonitorRect = (i32, i32, u32, u32, f64);
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn overlay_goes_bottom_center_of_monitor_under_cursor() {
+        let mons = [(0, 0, 3024, 1964, 2.0), (3024, 0, 1920, 1080, 1.0)];
+        // Retina screen: 240x48 logical is 480x96 physical, 80 logical above the bottom.
+        assert_eq!(overlay_position(&mons, (1679.0, 1420.0)), Some((1272.0, 1964.0 - 96.0 - 160.0)));
+        assert_eq!(overlay_position(&mons, (3500.0, 10.0)), Some((3024.0 + 840.0, 1080.0 - 48.0 - 80.0)));
+        // Cursor outside every monitor: use the first one.
+        assert_eq!(overlay_position(&mons, (-5.0, -5.0)), Some((1272.0, 1708.0)));
+        assert_eq!(overlay_position(&[], (0.0, 0.0)), None);
+    }
+}
+
+/// Bottom center of the monitor under the cursor (physical pixels), 80 px
+/// above its bottom edge; the first monitor when the cursor is on none.
+fn overlay_position(monitors: &[MonitorRect], cursor: (f64, f64)) -> Option<(f64, f64)> {
+    let inside = |&&(x, y, w, h, _): &&MonitorRect| {
+        cursor.0 >= x as f64 && cursor.0 < x as f64 + w as f64 && cursor.1 >= y as f64 && cursor.1 < y as f64 + h as f64
+    };
+    let &(x, y, w, h, s) = monitors.iter().find(inside).or(monitors.first())?;
+    Some((x as f64 + (w as f64 - OVERLAY_W * s) / 2.0, y as f64 + h as f64 - (OVERLAY_H + OVERLAY_BOTTOM_GAP) * s))
+}
+
+/// Move the overlay to the screen the user is working on. Tauri's
+/// monitor_from_point expects logical points on macOS while cursor_position is
+/// physical, so the monitor is matched here instead.
 fn place_overlay(app: &AppHandle) {
     let Some(w) = app.get_webview_window("overlay") else { return };
-    let Ok(p) = app.cursor_position() else { return };
-    let Ok(Some(m)) = app.monitor_from_point(p.x, p.y) else { return };
-    let s = m.scale_factor();
-    let (pos, size) = (m.position(), m.size());
-    let x = pos.x as f64 + (size.width as f64 - OVERLAY_W * s) / 2.0;
-    let y = pos.y as f64 + size.height as f64 - (OVERLAY_H + OVERLAY_BOTTOM_GAP) * s;
-    let _ = w.set_size(LogicalSize::new(OVERLAY_W, OVERLAY_H));
-    let _ = w.set_position(PhysicalPosition::new(x, y));
+    let Ok(monitors) = app.available_monitors() else { return };
+    let rects: Vec<MonitorRect> = monitors
+        .iter()
+        .map(|m| (m.position().x, m.position().y, m.size().width, m.size().height, m.scale_factor()))
+        .collect();
+    let cursor = app.cursor_position().map(|p| (p.x, p.y)).unwrap_or((f64::MIN, f64::MIN));
+    if let Some((x, y)) = overlay_position(&rects, cursor) {
+        let _ = w.set_size(LogicalSize::new(OVERLAY_W, OVERLAY_H));
+        let _ = w.set_position(PhysicalPosition::new(x, y));
+    }
 }
 
 pub fn show_main(app: &AppHandle) {
