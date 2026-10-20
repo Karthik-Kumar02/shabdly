@@ -1,0 +1,14 @@
+[
+  {"raw": "कल मैं मार्केट जाऊंगा और सब्ज़ी लेकर आऊंगा", "must_contain_ci": ["market", "sabzi"]},
+  {"raw": "यार meeting postpone कर दो, मैं थोड़ा late हो जाऊंगा", "must_contain_ci": ["meeting", "postpone", "late"]},
+  {"raw": "um so basically I think we should uh ship it on friday", "must_contain": ["Friday"], "must_contain_ci": ["ship"], "must_not_words": ["um", "uh"]},
+  {"raw": "can you ask kartik to push the reya changes to the tory branch", "must_contain": ["Karthik", "REA", "Tauri"]},
+  {"raw": "kartik ने बोला कि रिया वाला setup आज हो जाएगा", "must_contain": ["Karthik", "REA"], "must_contain_ci": ["setup"]},
+  {"raw": "bhai kal milte hain na", "must_contain_ci": ["bhai", "kal", "milte"]},
+  {"raw": "मेरा flight सुबह 6 बजे है, तो 4:30 तक निकलना पड़ेगा", "must_contain": ["6", "4:30"], "must_contain_ci": ["flight"]},
+  {"raw": "क्या तुमने वो PDF भेज दी संजीव को?", "must_contain": ["PDF", "Sanjeev"]},
+  {"raw": "let's meet at 5, no wait, 6 pm at the usual place", "must_contain": ["6"], "must_not_words": ["5"]},
+  {"raw": "the food was बहुत अच्छा honestly", "must_contain_ci": ["food", "bahut", "honestly"]},
+  {"raw": "shabd lee का dictionary feature मुझे बहुत पसंद है", "must_contain": ["Shabdly"], "must_contain_ci": ["dictionary"]},
+  {"raw": "मुझे लगता है कि हमें ये feature next week तक finish कर लेना चाहिए, वरना client नाराज़ हो जाएगा", "must_contain_ci": ["feature", "next week", "client"]}
+]
