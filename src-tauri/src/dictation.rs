@@ -46,12 +46,12 @@ pub enum Outcome {
     Failed { message: String },
 }
 
-fn now_ms() -> i64 {
+pub(crate) fn now_ms() -> i64 {
     SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_millis() as i64).unwrap_or(0)
 }
 
 impl Deps {
-    fn save_dict(&self) {
+    pub(crate) fn save_dict(&self) {
         if let Some(dir) = &self.data_dir {
             let d = self.dict.lock().unwrap().clone();
             if let Err(e) = store::save(&dir.join("dictionary.json"), &d) {
@@ -60,7 +60,7 @@ impl Deps {
         }
     }
 
-    fn save_history(&self) {
+    pub(crate) fn save_history(&self) {
         if let Some(dir) = &self.data_dir {
             let h = self.history.lock().unwrap().clone();
             if let Err(e) = store::save(&dir.join("history.json"), &h) {
@@ -305,7 +305,7 @@ fn run(
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::platform::fake::FakePlatform;
     use crate::platform::{ClipboardSnapshot, FieldText};
@@ -314,14 +314,14 @@ mod tests {
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::time::Instant;
 
-    struct FakeAsr(&'static str);
+    pub(crate) struct FakeAsr(pub &'static str);
     impl Transcriber for FakeAsr {
         fn transcribe(&self, _s: &[f32], _l: Language) -> anyhow::Result<String> {
             Ok(self.0.into())
         }
     }
 
-    struct Echo;
+    pub(crate) struct Echo;
     #[async_trait]
     impl CleanupProvider for Echo {
         fn base_timeout(&self) -> Duration {
@@ -347,7 +347,7 @@ mod tests {
         Some(FieldText { value: v.into(), is_password: false, element_id: id })
     }
 
-    fn deps(p: Arc<FakePlatform>, asr: &'static str, provider: Arc<dyn CleanupProvider>) -> Deps {
+    pub(crate) fn deps(p: Arc<FakePlatform>, asr: &'static str, provider: Arc<dyn CleanupProvider>) -> Deps {
         Deps {
             platform: p,
             asr: Arc::new(FakeAsr(asr)),

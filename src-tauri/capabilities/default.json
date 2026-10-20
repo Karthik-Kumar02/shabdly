@@ -1,8 +1,11 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Capability for the main window",
-  "windows": ["main"],
+  "description": "Capability for the Shabdly windows",
+  "windows": [
+    "main",
+    "overlay"
+  ],
   "permissions": [
     "core:default",
     "opener:default"

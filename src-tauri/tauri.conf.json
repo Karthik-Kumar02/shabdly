@@ -13,14 +13,34 @@
     "withGlobalTauri": true,
     "windows": [
       {
+        "label": "main",
         "title": "Shabdly",
-        "width": 800,
-        "height": 600
+        "width": 720,
+        "height": 560,
+        "visible": false,
+        "center": true
+      },
+      {
+        "label": "overlay",
+        "title": "Shabdly overlay",
+        "url": "src/overlay.html",
+        "width": 240,
+        "height": 48,
+        "transparent": true,
+        "decorations": false,
+        "alwaysOnTop": true,
+        "focusable": false,
+        "skipTaskbar": true,
+        "visible": false,
+        "resizable": false,
+        "shadow": false,
+        "visibleOnAllWorkspaces": true
       }
     ],
     "security": {
       "csp": null
-    }
+    },
+    "macOSPrivateApi": true
   },
   "bundle": {
     "active": true,
