@@ -1,3 +1,7 @@
+## What's new
+
+- Faster dictation: text appears about 0.8 s sooner when the language is set to Auto (language detection now checks the first 10 seconds instead of running a second full pass).
+
 ## Download
 
 | Your computer | File |
