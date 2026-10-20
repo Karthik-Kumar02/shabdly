@@ -18,7 +18,7 @@ use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};
 use std::sync::mpsc::channel;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use tauri::menu::{Menu, MenuItem};
+use tauri::menu::{Menu, MenuItem, MenuItemKind, PredefinedMenuItem};
 use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Emitter, LogicalSize, Manager, PhysicalPosition, RunEvent, WindowEvent};
 
@@ -144,6 +144,22 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         let _ = o.set_ignore_cursor_events(true);
         place_overlay(app.handle());
         let _ = o.show();
+    }
+
+    // Standard macOS app menu plus Settings… (Cmd+,), which opens the main window.
+    #[cfg(target_os = "macos")]
+    {
+        let menu = Menu::default(app.handle())?;
+        if let Some(MenuItemKind::Submenu(app_menu)) = menu.items()?.first() {
+            let settings = MenuItem::with_id(app, "settings", "Settings…", true, Some("CmdOrCtrl+,"))?;
+            app_menu.insert_items(&[&settings, &PredefinedMenuItem::separator(app)?], 2)?;
+        }
+        app.set_menu(menu)?;
+        app.on_menu_event(|app, e| {
+            if e.id() == "settings" {
+                show_main(app);
+            }
+        });
     }
 
     let open = MenuItem::with_id(app, "open", "Open Shabdly", true, None::<&str>)?;

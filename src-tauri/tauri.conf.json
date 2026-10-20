@@ -18,7 +18,8 @@
         "width": 720,
         "height": 560,
         "visible": false,
-        "center": true
+        "center": true,
+        "zoomHotkeysEnabled": true
       },
       {
         "label": "overlay",

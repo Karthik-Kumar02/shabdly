@@ -281,7 +281,7 @@ const renderers: Record<Tab, (root: HTMLElement) => Promise<void>> = {
 export function renderApp() {
   app.innerHTML = `
     <header><h1>Shabdly</h1><span class="tagline">Words that learn you.</span></header>
-    <nav>${tabs.map((t) => `<button class="tab ${t === current ? "active" : ""}" data-tab="${t}">${t}</button>`).join("")}</nav>
+    <nav>${tabs.map((t) => `<button class="tab ${t === current ? "active" : ""}" data-tab="${t}" ${t === current ? 'aria-current="page"' : ""}>${t}</button>`).join("")}</nav>
     <main id="panel"></main>`;
   app.querySelectorAll<HTMLButtonElement>(".tab").forEach((b) =>
     b.addEventListener("click", () => {
