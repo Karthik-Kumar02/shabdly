@@ -22,5 +22,6 @@ whisper-rs = "0.16"
 whisper-rs = { version = "0.16", features = ["metal"] }
 
 [dev-dependencies]
+tokio = { version = "1", features = ["net", "io-util"] }
 hound = "3.5.1"
 tempfile = "3"

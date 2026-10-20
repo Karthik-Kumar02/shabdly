@@ -135,7 +135,7 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         }
     });
     let key = settings.lock().unwrap().hotkey.clone();
-    let hotkey = hotkey::spawn(key, raw_tx)
+    let hotkey = hotkey::spawn(key, raw_tx.clone())
         .map_err(|e| eprintln!("hotkey listener not started: {e:#}"))
         .ok();
 
@@ -172,7 +172,7 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     }
     tray.build(app)?;
 
-    app.manage(AppState { deps, hotkey: Mutex::new(hotkey), warm, last_hotkey_ms, first_run });
+    app.manage(AppState { deps, hotkey: Mutex::new(hotkey), warm, last_hotkey_ms, hotkey_tx: raw_tx });
     if first_run {
         show_main(app.handle());
     }
@@ -210,6 +210,16 @@ pub fn run() {
             commands::has_api_key,
             commands::reinsert,
             commands::overlay_interactive,
+            commands::needs_setup,
+            commands::ollama_status,
+            commands::pull_model,
+            commands::whisper_ready,
+            commands::download_whisper,
+            commands::request_accessibility,
+            commands::accessibility_status,
+            commands::request_microphone,
+            commands::open_settings_pane,
+            commands::hotkey_health,
         ])
         .build(tauri::generate_context!())
         .expect("error while building Shabdly");

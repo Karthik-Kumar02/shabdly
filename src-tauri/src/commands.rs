@@ -1,6 +1,11 @@
 //! Tauri commands for the settings, dictionary and history windows.
 use crate::dictation::{Deps, now_ms};
-use crate::hotkey::{Hotkey, Tracker};
+use crate::hotkey::{Hotkey, HotkeyEvent, Tracker};
+use shabdly_core::asr::WHISPER_MODELS;
+use shabdly_core::setup::{self, OllamaStatus};
+use std::sync::mpsc::Sender;
+use std::time::Duration;
+use tauri::Emitter;
 use shabdly_core::dictionary::Entry;
 use shabdly_core::history::HistoryItem;
 use shabdly_core::learning::{LearnEvent, learn, undo};
@@ -19,7 +24,8 @@ pub struct AppState {
     pub warm: Arc<AtomicBool>,
     /// Unix ms of the last hotkey event the listener delivered (0 = none yet).
     pub last_hotkey_ms: Arc<AtomicI64>,
-    pub first_run: bool,
+    /// Where a (re)started hotkey listener sends its events.
+    pub hotkey_tx: Sender<HotkeyEvent>,
 }
 
 type CmdResult<T> = Result<T, String>;
@@ -46,9 +52,12 @@ pub fn get_settings(state: State<AppState>) -> Settings {
 #[tauri::command]
 pub fn set_settings(state: State<AppState>, settings: Settings) -> CmdResult<()> {
     Tracker::new(&settings.hotkey).map_err(msg)?;
-    if let Some(h) = state.hotkey.lock().unwrap().as_ref() {
-        h.set_key(&settings.hotkey).map_err(msg)?;
+    let mut hk = state.hotkey.lock().unwrap();
+    match hk.as_ref() {
+        Some(h) => h.set_key(&settings.hotkey).map_err(msg)?,
+        None => *hk = crate::hotkey::spawn(settings.hotkey.clone(), state.hotkey_tx.clone()).ok(),
     }
+    drop(hk);
     if let Some(dir) = &state.deps.data_dir {
         store::save(&dir.join("settings.json"), &settings).map_err(msg)?;
     }
@@ -181,6 +190,124 @@ pub fn overlay_interactive(app: AppHandle, on: bool) {
     }
 }
 
+const OLLAMA_URL: &str = "http://localhost:11434";
+const LOCAL_MODEL: &str = "gemma4:e4b";
+
+/// True when settings.json does not exist yet: first-run setup has not finished.
+#[tauri::command]
+pub fn needs_setup(state: State<AppState>) -> bool {
+    state.deps.data_dir.as_ref().is_some_and(|d| !d.join("settings.json").exists())
+}
+
+#[tauri::command]
+pub async fn ollama_status() -> OllamaStatus {
+    setup::ollama_status(OLLAMA_URL, LOCAL_MODEL).await
+}
+
+#[tauri::command]
+pub async fn pull_model(app: AppHandle) -> CmdResult<()> {
+    setup::pull(OLLAMA_URL, LOCAL_MODEL, |done, total| {
+        let _ = app.emit("setup-progress", serde_json::json!({ "kind": "model", "done": done, "total": total }));
+    })
+    .await
+    .map_err(|e| format!("{e:#}"))
+}
+
+fn model_path(state: &AppState, name: &str) -> CmdResult<std::path::PathBuf> {
+    let dir = state.deps.data_dir.as_ref().ok_or("no data folder")?;
+    Ok(dir.join("models").join(name))
+}
+
+#[tauri::command]
+pub fn whisper_ready(state: State<AppState>, name: String) -> CmdResult<bool> {
+    Ok(model_path(&state, &name)?.exists())
+}
+
+#[tauri::command]
+pub async fn download_whisper(app: AppHandle, state: State<'_, AppState>, name: String) -> CmdResult<()> {
+    let url = WHISPER_MODELS.iter().find(|(n, _)| *n == name).ok_or("Unknown speech model")?.1;
+    let dest = model_path(&state, &name)?;
+    setup::download(url, &dest, |done, total| {
+        let _ = app.emit("setup-progress", serde_json::json!({ "kind": "whisper", "done": done, "total": total }));
+    })
+    .await
+    .map_err(|e| format!("Download failed: {e:#}"))
+}
+
+/// Shows the macOS Accessibility prompt when not yet allowed.
+#[tauri::command]
+pub fn request_accessibility(state: State<AppState>) -> bool {
+    state.deps.platform.accessibility_trusted(true)
+}
+
+#[tauri::command]
+pub fn accessibility_status(state: State<AppState>) -> bool {
+    state.deps.platform.accessibility_trusted(false)
+}
+
+/// Open the mic briefly so the OS asks for permission. True when it opened.
+#[tauri::command]
+pub async fn request_microphone() -> bool {
+    tauri::async_runtime::spawn_blocking(|| {
+        let mut r = crate::capture::Recorder::default();
+        let ok = r.start(std::sync::mpsc::channel().0).is_ok();
+        std::thread::sleep(Duration::from_millis(300));
+        r.stop();
+        ok
+    })
+    .await
+    .unwrap_or(false)
+}
+
+/// Open a privacy page in System Settings (macOS); `pane` is
+/// "accessibility", "input_monitoring" or "microphone".
+#[tauri::command]
+pub fn open_settings_pane(pane: String) -> CmdResult<()> {
+    let anchor = match pane.as_str() {
+        "accessibility" => "Privacy_Accessibility",
+        "input_monitoring" => "Privacy_ListenEvent",
+        "microphone" => "Privacy_Microphone",
+        _ => return Err("unknown settings page".into()),
+    };
+    #[cfg(target_os = "macos")]
+    std::process::Command::new("open")
+        .arg(format!("x-apple.systempreferences:com.apple.preference.security?{anchor}"))
+        .spawn()
+        .map_err(msg)?;
+    #[cfg(not(target_os = "macos"))]
+    let _ = anchor;
+    Ok(())
+}
+
+/// Wait up to `wait` for a hotkey event that arrives after the call starts.
+pub async fn wait_for_hotkey(last_ms: &AtomicI64, wait: Duration) -> bool {
+    let start = now_ms();
+    let deadline = tokio::time::Instant::now() + wait;
+    loop {
+        if last_ms.load(std::sync::atomic::Ordering::SeqCst) >= start {
+            return true;
+        }
+        if tokio::time::Instant::now() >= deadline {
+            return false;
+        }
+        tokio::time::sleep(Duration::from_millis(25)).await;
+    }
+}
+
+/// True when the dictation key reached Shabdly within `ms`. Starts the
+/// listener first if it could not start before (permission granted since).
+#[tauri::command]
+pub async fn hotkey_health(state: State<'_, AppState>, ms: u64) -> CmdResult<bool> {
+    {
+        let mut hk = state.hotkey.lock().unwrap();
+        if hk.is_none() {
+            let key = state.deps.settings.lock().unwrap().hotkey.clone();
+            *hk = crate::hotkey::spawn(key, state.hotkey_tx.clone()).ok();
+        }
+    }
+    Ok(wait_for_hotkey(&state.last_hotkey_ms, Duration::from_millis(ms)).await)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -206,5 +333,20 @@ mod tests {
         assert_eq!(d.dict.lock().unwrap().get("Karthik").unwrap().heard_as, vec!["kartik"]);
         assert!(std::fs::read_to_string(dir.path().join("dictionary.json")).unwrap().contains("Karthik"));
         assert!(fix_word(&d, 99, "a", "b").is_err(), "unknown history item");
+    }
+
+    #[tokio::test]
+    async fn hotkey_health_reports_silence() {
+        let last = Arc::new(AtomicI64::new(0));
+        assert!(!wait_for_hotkey(&last, std::time::Duration::from_millis(50)).await);
+
+        // An event during the wait counts; one from before the wait does not.
+        last.store(now_ms() - 60_000, std::sync::atomic::Ordering::SeqCst);
+        let l2 = last.clone();
+        tokio::spawn(async move {
+            tokio::time::sleep(std::time::Duration::from_millis(30)).await;
+            l2.store(now_ms(), std::sync::atomic::Ordering::SeqCst);
+        });
+        assert!(wait_for_hotkey(&last, std::time::Duration::from_millis(500)).await);
     }
 }

@@ -1,6 +1,7 @@
 // Settings, Dictionary and History tabs. No framework: each tab re-renders
 // itself from the backend after every change.
 import { invoke } from "@tauri-apps/api/core";
+import { startOnboarding } from "./onboarding";
 
 export type Settings = {
   version: number;
@@ -259,4 +260,4 @@ window.addEventListener("focus", () => {
   if (current !== "Settings") renderers[current](document.getElementById("panel")!);
 });
 
-renderApp();
+invoke<boolean>("needs_setup").then((setup) => (setup ? startOnboarding(app, renderApp) : renderApp()));

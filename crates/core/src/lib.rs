@@ -10,5 +10,6 @@ pub mod pipeline;
 pub mod prompt;
 pub mod providers;
 pub mod settings;
+pub mod setup;
 pub mod store;
 pub mod swaps;
