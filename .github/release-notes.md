@@ -1,8 +1,9 @@
 ## What's new
 
-- Mac: updates now keep Shabdly's Accessibility and microphone permissions (builds are signed with one fixed certificate). Updating from 0.1.3 or older resets them one last time.
-- Mac: quitting Shabdly no longer crashes.
-- Faster dictation (since 0.1.1): text appears about 0.8 s sooner when the language is set to Auto.
+- New look: a champagne gold app icon, a sidebar window with frosted macOS glass, settings grouped into cards, and gold switches. Works in light and dark mode.
+- A much smaller dictation pill: a slim dark bead with gold bars, no red dot.
+- Smooth motion throughout: pages, switches, buttons, lists and the pill all animate. Reduce Motion in System Settings turns it into simple fades.
+- Mac: updates keep Shabdly's Accessibility and microphone permissions (since 0.1.4).
 
 ## Download
 
