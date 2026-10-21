@@ -2,6 +2,7 @@
 // while processing, short notices, and the "Learned" toast with Undo.
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { SPRING, SPRING_MS, enter } from "./motion";
 
 type OverlayState = { state: "recording" | "processing" | "warming" | "error" | "hidden"; level?: number; message?: string | null };
 type LearnEvent = { kind: "added" | "heard_added" | "hint_only" | "promoted"; word: string; heard: string };
@@ -11,29 +12,51 @@ const BARS = 5;
 const DOTS = `<span class="dots"><i></i><i></i><i></i></span>`;
 let hideTimer: number | undefined;
 let toastTimer: number | undefined;
+let exit: Animation | undefined;
 
+// A visible pill morphs to its new width; a hidden one pops in (pillin in style.css).
 function show(html: string, cls: string) {
   window.clearTimeout(hideTimer);
+  exit?.cancel();
+  const wasShown = !pill.hidden;
+  const from = pill.getBoundingClientRect().width;
   pill.className = `pill ${cls}`;
   pill.innerHTML = html;
   pill.hidden = false;
+  if (!wasShown) return;
+  const to = pill.getBoundingClientRect().width;
+  if (from !== to) pill.animate({ width: [`${from}px`, `${to}px`] }, { duration: SPRING_MS, easing: SPRING });
+  for (const child of pill.children) enter(child, 0);
 }
 
 function hideSoon(ms: number) {
   window.clearTimeout(hideTimer);
   hideTimer = window.setTimeout(() => {
-    pill.hidden = true;
-    invoke("overlay_interactive", { on: false });
+    exit = pill.animate({ opacity: [1, 0], transform: ["none", "scale(0.9)"] }, { duration: 160, easing: "ease-in" });
+    exit.onfinish = () => {
+      pill.hidden = true;
+      invoke("overlay_interactive", { on: false });
+    };
   }, ms);
 }
 
-function bars(level: number) {
+// Level updates arrive many times a second: move the existing bars so their transition glides.
+function setBars(level: number) {
+  const els = pill.querySelectorAll<HTMLElement>(".recording .bar");
+  if (pill.hidden || els.length !== BARS) return show(`<span class="bars">${bars(level)}</span>`, "recording");
+  window.clearTimeout(hideTimer);
+  exit?.cancel();
+  scales(level).forEach((k, i) => (els[i].style.transform = `scaleY(${k})`));
+}
+
+function scales(level: number) {
   // Speech RMS is small; scale so normal talking fills most of the bar.
   const h = Math.min(1, Math.sqrt(level) * 3);
-  return Array.from({ length: BARS }, (_, i) => {
-    const k = 0.35 + 0.65 * h * (1 - Math.abs(i - 2) / 3);
-    return `<span class="bar" style="transform: scaleY(${k.toFixed(2)})"></span>`;
-  }).join("");
+  return Array.from({ length: BARS }, (_, i) => (0.35 + 0.65 * h * (1 - Math.abs(i - 2) / 3)).toFixed(2));
+}
+
+function bars(level: number) {
+  return scales(level).map((k) => `<span class="bar" style="transform: scaleY(${k})"></span>`).join("");
 }
 
 function escapeHtml(s: string) {
@@ -44,7 +67,7 @@ listen<OverlayState>("overlay-state", ({ payload }) => {
   window.clearTimeout(toastTimer);
   switch (payload.state) {
     case "recording":
-      show(`<span class="bars">${bars(payload.level ?? 0)}</span>`, "recording");
+      setBars(payload.level ?? 0);
       break;
     case "processing":
       show(DOTS, "busy");

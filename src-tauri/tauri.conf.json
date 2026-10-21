@@ -19,7 +19,11 @@
         "height": 560,
         "visible": false,
         "center": true,
-        "zoomHotkeysEnabled": true
+        "zoomHotkeysEnabled": true,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true,
+        "transparent": true,
+        "windowEffects": { "effects": ["sidebar"], "state": "followsWindowActiveState" }
       },
       {
         "label": "overlay",

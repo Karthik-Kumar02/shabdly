@@ -4,6 +4,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { HOTKEYS, LANGUAGES, type Settings, esc, isMac, options } from "./main";
+import { SPRING, SPRING_MS, enter } from "./motion";
 
 type Step = (card: HTMLElement, next: () => void) => Promise<void> | void;
 
@@ -225,12 +226,18 @@ export function startOnboarding(root: HTMLElement, done: () => void, only?: "spe
   let i = 0;
   const show = () => {
     if (i >= steps.length) return done();
-    root.innerHTML = `<header><h1>Shabdly</h1><span class="tagline">Words that learn you.</span></header>
-      <p class="steps">Step ${i + 1} of ${steps.length}</p><div class="card" id="card"></div>`;
-    steps[i](document.getElementById("card")!, () => {
+    const dots = steps.map((_, k) => `<i class="${k < i ? "on" : k === i ? "on cur" : ""}"></i>`).join("");
+    root.innerHTML = `<div class="onboard" data-tauri-drag-region><div class="onboard-inner">
+      <header><div class="brand">Shabdly</div><span class="tagline">Words that learn you.</span></header>
+      <div class="card" id="card"></div>
+      <p class="steps"><span class="stepdots" aria-hidden="true">${dots}</span>Step ${i + 1} of ${steps.length}</p></div></div>`;
+    const card = document.getElementById("card")!;
+    steps[i](card, () => {
       i += 1;
       show();
     });
+    enter(card, 10);
+    root.querySelector(".stepdots .cur")?.animate({ width: ["6px", "16px"] }, { duration: SPRING_MS, easing: SPRING });
   };
   show();
 }
