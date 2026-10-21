@@ -1,57 +1,67 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
-  <!-- Shabdly mark: voice bars hanging from a shirorekha, the headline that Devanagari letters hang from. -->
+  <!-- Shabdly mark: voice bars hanging from a shirorekha, the headline that Devanagari letters hang from.
+       Ink mark on a champagne gold tile. Tile is the macOS icon squircle (824 px in 1024). -->
   <defs>
-    <linearGradient id="base" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#3a2a5c"/>
-      <stop offset="1" stop-color="#0e0a18"/>
+    <path id="tile" d="M924.0,512.0L923.9,595.4L923.5,627.9L922.9,652.6L922.1,673.1L921.0,691.0L919.7,707.0L918.1,721.6L916.3,735.0L914.3,747.5L912.0,759.2L909.4,770.1L906.6,780.4L903.6,790.2L900.3,799.4L896.7,808.2L892.9,816.5L888.8,824.4L884.4,831.9L879.8,839.0L874.9,845.8L869.7,852.3L864.2,858.4L858.4,864.2L852.3,869.7L845.8,874.9L839.0,879.8L831.9,884.4L824.4,888.8L816.5,892.9L808.2,896.7L799.4,900.3L790.2,903.6L780.4,906.6L770.1,909.4L759.2,912.0L747.5,914.3L735.0,916.3L721.6,918.1L707.0,919.7L691.0,921.0L673.1,922.1L652.6,922.9L627.9,923.5L595.4,923.9L512.0,924.0L428.6,923.9L396.1,923.5L371.4,922.9L350.9,922.1L333.0,921.0L317.0,919.7L302.4,918.1L289.0,916.3L276.5,914.3L264.8,912.0L253.9,909.4L243.6,906.6L233.8,903.6L224.6,900.3L215.8,896.7L207.5,892.9L199.6,888.8L192.1,884.4L185.0,879.8L178.2,874.9L171.7,869.7L165.6,864.2L159.8,858.4L154.3,852.3L149.1,845.8L144.2,839.0L139.6,831.9L135.2,824.4L131.1,816.5L127.3,808.2L123.7,799.4L120.4,790.2L117.4,780.4L114.6,770.1L112.0,759.2L109.7,747.5L107.7,735.0L105.9,721.6L104.3,707.0L103.0,691.0L101.9,673.1L101.1,652.6L100.5,627.9L100.1,595.4L100.0,512.0L100.1,428.6L100.5,396.1L101.1,371.4L101.9,350.9L103.0,333.0L104.3,317.0L105.9,302.4L107.7,289.0L109.7,276.5L112.0,264.8L114.6,253.9L117.4,243.6L120.4,233.8L123.7,224.6L127.3,215.8L131.1,207.5L135.2,199.6L139.6,192.1L144.2,185.0L149.1,178.2L154.3,171.7L159.8,165.6L165.6,159.8L171.7,154.3L178.2,149.1L185.0,144.2L192.1,139.6L199.6,135.2L207.5,131.1L215.8,127.3L224.6,123.7L233.8,120.4L243.6,117.4L253.9,114.6L264.8,112.0L276.5,109.7L289.0,107.7L302.4,105.9L317.0,104.3L333.0,103.0L350.9,101.9L371.4,101.1L396.1,100.5L428.6,100.1L512.0,100.0L595.4,100.1L627.9,100.5L652.6,101.1L673.1,101.9L691.0,103.0L707.0,104.3L721.6,105.9L735.0,107.7L747.5,109.7L759.2,112.0L770.1,114.6L780.4,117.4L790.2,120.4L799.4,123.7L808.2,127.3L816.5,131.1L824.4,135.2L831.9,139.6L839.0,144.2L845.8,149.1L852.3,154.3L858.4,159.8L864.2,165.6L869.7,171.7L874.9,178.2L879.8,185.0L884.4,192.1L888.8,199.6L892.9,207.5L896.7,215.8L900.3,224.6L903.6,233.8L906.6,243.6L909.4,253.9L912.0,264.8L914.3,276.5L916.3,289.0L918.1,302.4L919.7,317.0L921.0,333.0L922.1,350.9L922.9,371.4L923.5,396.1L923.9,428.6Z"/>
+    <g id="mark">
+      <rect x="252" y="320" width="520" height="56" rx="28"/>
+      <rect x="274" y="320" width="60" height="200" rx="30"/>
+      <rect x="378" y="320" width="60" height="320" rx="30"/>
+      <rect x="482" y="320" width="60" height="420" rx="30"/>
+      <rect x="586" y="320" width="60" height="290" rx="30"/>
+      <rect x="690" y="320" width="60" height="170" rx="30"/>
+    </g>
+    <clipPath id="clip"><use href="#tile"/></clipPath>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f8e6b8"/>
+      <stop offset="1" stop-color="#c4913f"/>
     </linearGradient>
-    <radialGradient id="violet" cx="0.28" cy="0.25" r="0.55">
-      <stop offset="0" stop-color="#8b6cf0" stop-opacity="0.75"/>
-      <stop offset="1" stop-color="#8b6cf0" stop-opacity="0"/>
-    </radialGradient>
-    <radialGradient id="rose" cx="0.86" cy="0.2" r="0.4">
-      <stop offset="0" stop-color="#e8a58a" stop-opacity="0.55"/>
-      <stop offset="1" stop-color="#e8a58a" stop-opacity="0"/>
-    </radialGradient>
-    <radialGradient id="teal" cx="0.78" cy="0.92" r="0.5">
-      <stop offset="0" stop-color="#3fb7b0" stop-opacity="0.45"/>
-      <stop offset="1" stop-color="#3fb7b0" stop-opacity="0"/>
+    <radialGradient id="halo" cx="0.5" cy="0.42" r="0.45">
+      <stop offset="0" stop-color="#fff8e6" stop-opacity="0.5"/>
+      <stop offset="1" stop-color="#fff8e6" stop-opacity="0"/>
     </radialGradient>
     <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#fff" stop-opacity="0.22"/>
+      <stop offset="0" stop-color="#fff" stop-opacity="0.25"/>
+      <stop offset="0.45" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+    <!-- Glass rim: bright at the top edge, warm shade at the bottom. -->
+    <linearGradient id="rim" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.8"/>
       <stop offset="0.5" stop-color="#fff" stop-opacity="0"/>
+      <stop offset="1" stop-color="#6b4614" stop-opacity="0.25"/>
     </linearGradient>
-    <linearGradient id="gold" gradientUnits="userSpaceOnUse" x1="0" y1="320" x2="0" y2="740">
-      <stop offset="0" stop-color="#fcf0cf"/>
-      <stop offset="0.45" stop-color="#e6c582"/>
-      <stop offset="1" stop-color="#b3843f"/>
+    <linearGradient id="ink" gradientUnits="userSpaceOnUse" x1="0" y1="320" x2="0" y2="740">
+      <stop offset="0" stop-color="#2e2540"/>
+      <stop offset="1" stop-color="#130f1c"/>
     </linearGradient>
-    <clipPath id="tile"><rect x="100" y="100" width="824" height="824" rx="185"/></clipPath>
-    <filter id="shadow" x="-10%" y="-10%" width="120%" height="125%">
-      <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#0b0614" flood-opacity="0.28"/>
+    <!-- Edge masks: the mark minus itself shifted, leaving a thin top highlight and bottom shade. -->
+    <mask id="topEdge" maskUnits="userSpaceOnUse" x="0" y="0" width="1024" height="1024">
+      <use href="#mark" fill="#fff"/><use href="#mark" fill="#000" transform="translate(0 7)"/>
+    </mask>
+    <mask id="botEdge" maskUnits="userSpaceOnUse" x="0" y="0" width="1024" height="1024">
+      <use href="#mark" fill="#fff"/><use href="#mark" fill="#000" transform="translate(0 -9)"/>
+    </mask>
+    <!-- Filters run in sRGB: linearRGB bands visibly on smooth gradients. -->
+    <filter id="tileShadow" color-interpolation-filters="sRGB" x="-10%" y="-10%" width="120%" height="125%">
+      <feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="#000" flood-opacity="0.3"/>
     </filter>
-    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
-      <feGaussianBlur stdDeviation="22"/>
+    <filter id="markShadow" color-interpolation-filters="sRGB" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="14" stdDeviation="14" flood-color="#6b4614" flood-opacity="0.45"/>
+    </filter>
+    <!-- Faint grain dithers the gradients so they do not band at 8 bits. -->
+    <filter id="grain" color-interpolation-filters="sRGB" x="0" y="0" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" seed="3"/>
+      <feColorMatrix values="1 0 0 0 0  1 0 0 0 0  1 0 0 0 0  0 0 0 0 0.06"/>
     </filter>
   </defs>
-  <g filter="url(#shadow)">
-    <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#base)"/>
+  <use href="#tile" fill="url(#bg)" filter="url(#tileShadow)"/>
+  <g clip-path="url(#clip)">
+    <rect width="1024" height="1024" fill="url(#halo)"/>
+    <rect width="1024" height="1024" fill="url(#sheen)"/>
+    <rect width="1024" height="1024" filter="url(#grain)"/>
   </g>
-  <g clip-path="url(#tile)">
-    <rect x="100" y="100" width="824" height="824" fill="url(#violet)"/>
-    <rect x="100" y="100" width="824" height="824" fill="url(#rose)"/>
-    <rect x="100" y="100" width="824" height="824" fill="url(#teal)"/>
-    <rect x="100" y="100" width="824" height="824" fill="url(#sheen)"/>
-  </g>
-  <rect x="101.5" y="101.5" width="821" height="821" rx="183.5" fill="none" stroke="#fff" stroke-opacity="0.2" stroke-width="3"/>
-  <g id="mark">
-    <rect x="252" y="320" width="520" height="56" rx="28"/>
-    <rect x="274" y="320" width="60" height="200" rx="30"/>
-    <rect x="378" y="320" width="60" height="320" rx="30"/>
-    <rect x="482" y="320" width="60" height="420" rx="30"/>
-    <rect x="586" y="320" width="60" height="290" rx="30"/>
-    <rect x="690" y="320" width="60" height="170" rx="30"/>
-  </g>
-  <use href="#mark" fill="#e6c582" opacity="0.4" filter="url(#glow)"/>
-  <use href="#mark" fill="url(#gold)"/>
+  <use href="#tile" fill="none" stroke="url(#rim)" stroke-width="6" clip-path="url(#clip)"/>
+  <use href="#mark" fill="url(#ink)" filter="url(#markShadow)"/>
+  <use href="#mark" fill="#b9a6d8" opacity="0.55" mask="url(#topEdge)"/>
+  <use href="#mark" fill="#000" opacity="0.3" mask="url(#botEdge)"/>
 </svg>
