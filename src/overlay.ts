@@ -1,4 +1,4 @@
-// The pill at the bottom of the screen: mic level while recording, a spinner
+// The pill at the bottom of the screen: mic level while recording, pulsing dots
 // while processing, short notices, and the "Learned" toast with Undo.
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
@@ -8,6 +8,7 @@ type LearnEvent = { kind: "added" | "heard_added" | "hint_only" | "promoted"; wo
 
 const pill = document.getElementById("pill")!;
 const BARS = 5;
+const DOTS = `<span class="dots"><i></i><i></i><i></i></span>`;
 let hideTimer: number | undefined;
 let toastTimer: number | undefined;
 
@@ -43,13 +44,13 @@ listen<OverlayState>("overlay-state", ({ payload }) => {
   window.clearTimeout(toastTimer);
   switch (payload.state) {
     case "recording":
-      show(`<span class="dot"></span><span class="bars">${bars(payload.level ?? 0)}</span>`, "recording");
+      show(`<span class="bars">${bars(payload.level ?? 0)}</span>`, "recording");
       break;
     case "processing":
-      show(`<span class="spinner"></span>`, "busy");
+      show(DOTS, "busy");
       break;
     case "warming":
-      show(`<span class="spinner"></span><span class="text">Warming up</span>`, "busy");
+      show(`${DOTS}<span class="text">Warming up</span>`, "busy");
       break;
     case "error":
       show(`<span class="text">${escapeHtml(payload.message ?? "Something went wrong")}</span>`, "notice");
