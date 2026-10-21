@@ -27,6 +27,8 @@ type HistoryItem = { at_ms: number; raw: string; cleaned: string; final_text: st
 type LearnEvent = { kind: string; word: string; heard: string };
 
 export const isMac = navigator.userAgent.includes("Mac");
+// Only macOS has the sidebar window material; elsewhere the sidebar is solid.
+document.documentElement.classList.toggle("mac", isMac);
 export const HOTKEYS = isMac
   ? ["Fn", "RightAlt", "RightCmd", "RightCtrl", "F13"]
   : ["Ctrl+Win", "RightAlt", "RightCtrl", "Ctrl+Shift"];

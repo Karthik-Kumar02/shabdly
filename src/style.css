@@ -297,9 +297,13 @@ html:has(.overlay-body) { background: transparent; }
 @media (prefers-contrast: more) and (prefers-color-scheme: dark) {
   :root { --line: rgba(255, 255, 255, 0.3); --muted: #d6d0e2; }
 }
-/* Reduce Transparency: macOS makes the sidebar material opaque; drop the tint too. */
+/* Reduce Transparency (macOS makes the material opaque) and non-Mac windows (no material): solid sidebar. */
+:root:not(.mac) { --side: #ece8e1; --sel: #ffffff; }
 @media (prefers-reduced-transparency: reduce) {
   :root { --side: #ece8e1; --sel: #ffffff; }
+}
+@media (prefers-color-scheme: dark) {
+  :root:not(.mac) { --side: #1e1b24; --sel: #2c2833; }
 }
 @media (prefers-reduced-transparency: reduce) and (prefers-color-scheme: dark) {
   :root { --side: #1e1b24; --sel: #2c2833; }
