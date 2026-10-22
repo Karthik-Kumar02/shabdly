@@ -6,6 +6,7 @@ pub mod audio;
 pub mod dictionary;
 pub mod history;
 pub mod learning;
+pub mod model_store;
 pub mod models;
 pub mod pipeline;
 pub mod prompt;
