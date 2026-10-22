@@ -17,7 +17,7 @@ pub fn parse_macos_version(v: &str) -> (u32, u32) {
     (parts.next().unwrap_or(0), parts.next().unwrap_or(0))
 }
 
-fn run(program: &Path, args: &[&str]) -> Option<String> {
+pub(crate) fn run(program: &Path, args: &[&str]) -> Option<String> {
     let mut cmd = Command::new(program);
     cmd.args(args);
     #[cfg(windows)]
