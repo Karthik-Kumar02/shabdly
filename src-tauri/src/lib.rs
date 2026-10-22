@@ -85,6 +85,11 @@ fn gguf_fallback(data_dir: &Path, spec: Option<&ModelSpec>) -> Option<&'static M
     model_dir(&data_dir.join("models"), g).join(g.files[0].name).exists().then_some(g)
 }
 
+/// A (not yet started) bundled engine for `spec`, with this machine's fallback chain.
+pub(crate) fn new_engine(data_dir: &Path, engines_dir: &Path, spec: Option<&ModelSpec>) -> Arc<LocalEngine> {
+    LocalEngine::new(local_engine::chain(data_dir, engines_dir, spec, gguf_fallback(data_dir, spec)))
+}
+
 pub fn show_main(app: &AppHandle) {
     if let Some(w) = app.get_webview_window("main") {
         let _ = w.show();
@@ -107,11 +112,12 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     local_engine::kill_stale(&data_dir);
     let engines_dir = app.path().resource_dir()?.join("engines");
     let spec = machine::chosen_spec(&settings.lock().unwrap(), &engines_dir);
-    let local = LocalEngine::new(local_engine::chain(&data_dir, &engines_dir, spec, gguf_fallback(&data_dir, spec)));
+    let local = new_engine(&data_dir, &engines_dir, spec);
+    let slot = Arc::new(Mutex::new(local.clone()));
     let deps = Arc::new(Deps {
         platform: platform::current(),
         asr: asr.clone(),
-        provider: Arc::new(SwitchProvider { settings: settings.clone(), local: local.clone() }),
+        provider: Arc::new(SwitchProvider { settings: settings.clone(), local: slot.clone() }),
         dict: Arc::new(Mutex::new(store::load_or_set_aside(&data_dir.join("dictionary.json")))),
         history: Arc::new(Mutex::new(store::load_or_set_aside(&data_dir.join("history.json")))),
         settings: settings.clone(),
@@ -210,7 +216,16 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     };
     tray.build(app)?;
 
-    app.manage(AppState { deps, hotkey: Mutex::new(hotkey), warm, last_hotkey_ms, hotkey_tx: raw_tx, local });
+    app.manage(AppState {
+        deps,
+        hotkey: Mutex::new(hotkey),
+        warm,
+        last_hotkey_ms,
+        hotkey_tx: raw_tx,
+        local: slot,
+        engines_dir,
+        downloading: AtomicBool::new(false),
+    });
     if first_run {
         show_main(app.handle());
     }
@@ -259,6 +274,13 @@ pub fn run() {
             commands::request_microphone,
             commands::open_settings_pane,
             commands::hotkey_health,
+            commands::models_status,
+            commands::download_models,
+            commands::set_speed,
+            commands::engine_status,
+            commands::retry_engine,
+            commands::try_builtin_switch,
+            commands::dismiss_builtin_offer,
         ])
         .build(tauri::generate_context!())
         .expect("error while building Shabdly");
@@ -271,7 +293,7 @@ pub fn run() {
         if let RunEvent::Exit = event {
             // Stop the helper, or free Ollama's model memory; never block quitting for long.
             if let Some(state) = app.try_state::<AppState>() {
-                state.local.stop();
+                state.local.lock().unwrap_or_else(|e| e.into_inner()).stop();
                 let s = state.deps.settings.lock().unwrap_or_else(|e| e.into_inner());
                 if s.local_engine == LocalEngineKind::Ollama {
                     drop(s);

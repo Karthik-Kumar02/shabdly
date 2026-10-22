@@ -275,10 +275,12 @@ impl LocalEngine {
     /// Walks the chain again from step 1 (Settings "Retry").
     pub async fn retry(&self) {
         let _walk = self.walk.lock().await;
-        let mut s = self.state.lock().unwrap();
-        s.index = 0;
-        s.last_exit = None;
-        drop(s);
+        {
+            // A block, not drop(): the guard must not live across the await (the future stays Send).
+            let mut s = self.state.lock().unwrap();
+            s.index = 0;
+            s.last_exit = None;
+        }
         self.walk_from(0, None).await;
     }
 

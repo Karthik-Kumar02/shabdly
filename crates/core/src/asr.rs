@@ -5,12 +5,18 @@ use std::path::Path;
 use std::sync::Mutex;
 use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters, WhisperState, get_lang_str};
 
-pub const WHISPER_MODELS: [(&str, &str); 2] = [
+/// (file name, URL, size in bytes).
+pub const WHISPER_MODELS: [(&str, &str, u64); 2] = [
     (
         "ggml-large-v3-turbo-q8_0.bin",
         "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo-q8_0.bin",
+        874_188_075,
     ),
-    ("ggml-small-q8_0.bin", "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small-q8_0.bin"),
+    (
+        "ggml-small-q8_0.bin",
+        "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small-q8_0.bin",
+        264_464_607,
+    ),
 ];
 
 pub trait Transcriber: Send + Sync {
