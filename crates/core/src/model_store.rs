@@ -59,7 +59,7 @@ fn stamp(path: &Path) -> anyhow::Result<(u64, u64)> {
     Ok((m.len(), mtime))
 }
 
-fn write_verified(dir: &Path, spec: &ModelSpec) -> anyhow::Result<()> {
+pub(crate) fn write_verified(dir: &Path, spec: &ModelSpec) -> anyhow::Result<()> {
     let mut v = Verified::new();
     for f in spec.files {
         v.insert(f.name.to_string(), stamp(&dir.join(f.name))?);
