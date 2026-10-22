@@ -12,20 +12,27 @@ fn fast_is_default_and_ram_gates_best() {
 
 #[test]
 fn mac_14_gets_mlx() {
-    assert_eq!(pick(Os::Mac, 14, Speed::Best).engine, EngineKind::Mlx);
-    assert_eq!(pick(Os::Mac, 15, Speed::Fast).engine, EngineKind::Mlx);
+    assert_eq!(pick(Os::Mac, (14, 0), Speed::Best).unwrap().engine, EngineKind::Mlx);
+    assert_eq!(pick(Os::Mac, (15, 2), Speed::Fast).unwrap().engine, EngineKind::Mlx);
 }
 
 #[test]
-fn mac_13_gets_llama() {
-    assert_eq!(pick(Os::Mac, 13, Speed::Best).engine, EngineKind::Llama);
-    assert_eq!(pick(Os::Mac, 11, Speed::Fast).engine, EngineKind::Llama);
+fn mac_13_3_gets_llama() {
+    assert_eq!(pick(Os::Mac, (13, 3), Speed::Best).unwrap().engine, EngineKind::Llama);
+    assert_eq!(pick(Os::Mac, (13, 6), Speed::Fast).unwrap().engine, EngineKind::Llama);
+}
+
+#[test]
+fn mac_below_13_3_has_no_bundled_engine() {
+    assert!(pick(Os::Mac, (13, 2), Speed::Fast).is_none());
+    assert!(pick(Os::Mac, (12, 7), Speed::Fast).is_none());
+    assert!(pick(Os::Mac, (11, 0), Speed::Best).is_none());
 }
 
 #[test]
 fn windows_gets_llama() {
     for speed in [Speed::Best, Speed::Fast] {
-        let spec = pick(Os::Windows, 0, speed);
+        let spec = pick(Os::Windows, (0, 0), speed).unwrap();
         assert_eq!(spec.engine, EngineKind::Llama);
         assert_eq!(spec.speed, speed);
     }

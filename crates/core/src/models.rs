@@ -215,17 +215,17 @@ pub fn best_offered(ram_gb: u64, has_gpu: bool) -> bool {
     ram_gb >= 16 && has_gpu
 }
 
-/// MLX needs macOS 14 or later; older Macs and Windows use llama-server with the GGUF files.
-pub fn pick(os: Os, macos_major: u32, speed: Speed) -> &'static ModelSpec {
-    let engine = if os == Os::Mac && macos_major >= 14 {
-        EngineKind::Mlx
-    } else {
-        EngineKind::Llama
+/// MLX needs macOS 14 or later. The official Mac llama-server needs 13.3 or later, so macOS 11.0
+/// to 13.2 gets `None`: no bundled engine, only Ollama or the raw transcript (user decision,
+/// 2026-10-22). Windows uses llama-server with the GGUF files. `macos` is (major, minor).
+pub fn pick(os: Os, macos: (u32, u32), speed: Speed) -> Option<&'static ModelSpec> {
+    let engine = match os {
+        Os::Windows => EngineKind::Llama,
+        Os::Mac if macos >= (14, 0) => EngineKind::Mlx,
+        Os::Mac if macos >= (13, 3) => EngineKind::Llama,
+        Os::Mac => return None,
     };
-    CATALOG
-        .iter()
-        .find(|s| s.engine == engine && s.speed == speed)
-        .expect("catalog covers every engine and speed")
+    CATALOG.iter().find(|s| s.engine == engine && s.speed == speed)
 }
 
 pub fn mirror_url(spec: &ModelSpec, f: &ModelFile) -> String {
