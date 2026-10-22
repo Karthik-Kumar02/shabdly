@@ -23,4 +23,23 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: cargo test --workspace
-      - run: cargo build -p shabdly
+      # Bundle the engines, build the app, then start each bundled helper from inside it (spec section 5).
+      - if: runner.os == 'macOS'
+        run: xcrun metal --version > /dev/null 2>&1 || xcodebuild -downloadComponent MetalToolchain
+      - uses: actions/cache@v4
+        with:
+          path: .cache/llama
+          key: llama-${{ runner.os }}-${{ hashFiles('scripts/fetch-llama.*') }}
+      - if: runner.os == 'macOS'
+        run: scripts/fetch-llama.sh
+      - if: runner.os == 'Windows'
+        run: ./scripts/fetch-llama.ps1
+      - if: runner.os == 'macOS'
+        run: |
+          npm run tauri build -- --bundles app
+          scripts/smoke-engines.sh target/release/bundle/macos/Shabdly.app/Contents/Resources/engines
+      - if: runner.os == 'Windows'
+        run: npm run tauri build -- --no-bundle
+      - if: runner.os == 'Windows'
+        shell: bash
+        run: scripts/smoke-engines.sh target/release/engines

@@ -43,6 +43,17 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+      - if: runner.os == 'macOS'
+        run: xcrun metal --version > /dev/null 2>&1 || xcodebuild -downloadComponent MetalToolchain
+      # Keeps the pinned llama.cpp archive (spec risk B3); the scripts still check its sha256.
+      - uses: actions/cache@v4
+        with:
+          path: .cache/llama
+          key: llama-${{ runner.os }}-${{ hashFiles('scripts/fetch-llama.*') }}
+      - if: runner.os == 'macOS'
+        run: scripts/fetch-llama.sh
+      - if: runner.os == 'Windows'
+        run: ./scripts/fetch-llama.ps1
       # Sign with one fixed self-signed certificate, so macOS keeps Shabdly's
       # Accessibility and microphone permissions across updates (ad-hoc builds lose them).
       # Tauri's own APPLE_CERTIFICATE import only accepts Apple-issued names, hence this step.
@@ -67,6 +78,14 @@ jobs:
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k ci "$KEYCHAIN" > /dev/null
           security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
           rm "$RUNNER_TEMP/cert.p12"
+      # Sign the bundled helpers with the same certificate, libraries before executables.
+      - if: runner.os == 'macOS'
+        run: |
+          for kind in 'dynamically linked shared library' 'executable'; do
+            find src-tauri/engines/mac -type f | while IFS= read -r f; do
+              if file -b "$f" | grep -q "^Mach-O.*$kind"; then codesign --force -s "Shabdly Self-Signed" "$f"; fi
+            done
+          done
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -74,3 +93,8 @@ jobs:
         with:
           releaseId: ${{ needs.create-release.outputs.id }}
           args: --bundles ${{ matrix.bundles }}
+      - if: runner.os == 'macOS'
+        run: scripts/smoke-engines.sh target/release/bundle/macos/Shabdly.app/Contents/Resources/engines
+      - if: runner.os == 'Windows'
+        shell: bash
+        run: scripts/smoke-engines.sh target/release/engines

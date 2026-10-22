@@ -58,6 +58,7 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
+    "resources": { "engines/": "engines/" },
     "macOS": {
       "minimumSystemVersion": "11.0",
       "signingIdentity": "-",

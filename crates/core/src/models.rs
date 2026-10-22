@@ -173,7 +173,7 @@ const E2B_GGUF: &[ModelFile] = &[f(
     "https://huggingface.co/google/gemma-4-E2B-it-qat-q4_0-gguf/resolve/675cff42a74c774d6cb76f76d8eacb49b48c9b93/gemma-4-E2B_q4_0-it.gguf",
 )];
 
-// ponytail: GGUF ram_gb are estimates until Task 8 measures llama-server RSS.
+// GGUF ram_gb: llama-server b11819 RSS on an M5 Mac (Metal) with `-c 8192 -np 1`, measured in Task 8.
 // The E2B MLX build is 4-bit: 5-bit (9/15) and 6-bit (7/15) also failed the punctuation
 // gate, so Task 10 adds the deterministic punctuation fix (spec risk Q1).
 pub static CATALOG: &[ModelSpec] = &[
@@ -196,14 +196,14 @@ pub static CATALOG: &[ModelSpec] = &[
         engine: EngineKind::Llama,
         speed: Speed::Best,
         files: E4B_GGUF,
-        ram_gb: 5.5,
+        ram_gb: 5.2,
     },
     ModelSpec {
         id: "gguf-gemma4-e2b-qat",
         engine: EngineKind::Llama,
         speed: Speed::Fast,
         files: E2B_GGUF,
-        ram_gb: 3.5,
+        ram_gb: 3.4,
     },
 ];
 
