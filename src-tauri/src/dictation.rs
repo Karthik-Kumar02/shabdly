@@ -301,7 +301,8 @@ fn run(
                     let (at_ms, element_id, text) = match outcome {
                         Outcome::Inserted { text, cleanup_skipped, at_ms, element_id } => {
                             if cleanup_skipped {
-                                overlay(&emit, "error", Some("Cleanup skipped"));
+                                let note = if deps.provider.paused() { "Cleanup paused, typing raw text" } else { "Cleanup skipped" };
+                                overlay(&emit, "error", Some(note));
                             } else {
                                 overlay(&emit, "hidden", None);
                             }
@@ -335,10 +336,13 @@ fn run(
 pub(crate) mod tests {
     use super::*;
     use crate::platform::fake::FakePlatform;
+    use crate::engine::SwitchProvider;
+    use crate::local_engine::{Candidate, LocalEngine, Running};
     use crate::platform::{ClipboardSnapshot, FieldText};
     use async_trait::async_trait;
-    use shabdly_core::settings::Language;
-    use std::sync::atomic::{AtomicBool, Ordering};
+    use shabdly_core::providers::OllamaProvider;
+    use shabdly_core::settings::{Language, LocalEngineKind};
+    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
     use std::time::Instant;
 
     pub(crate) struct FakeAsr(pub &'static str);
@@ -451,6 +455,68 @@ pub(crate) mod tests {
         d.dict.lock().unwrap().upsert_manual("Karthik", vec!["kartik".into()], None, 1);
         let o = process(&d, speech()).await;
         assert!(matches!(&o, Outcome::Inserted { text, cleanup_skipped: true, .. } if text == "tell Karthik"));
+    }
+
+    /// The bundled engine's only step: answers "bundled", or fails to start.
+    struct FakeBundled {
+        ok: bool,
+        starts: Arc<AtomicUsize>,
+    }
+    struct Says(&'static str);
+    #[async_trait]
+    impl CleanupProvider for Says {
+        fn base_timeout(&self) -> Duration {
+            Duration::from_millis(200)
+        }
+        async fn clean(&self, _s: &str, _t: &str) -> anyhow::Result<String> {
+            Ok(self.0.into())
+        }
+    }
+    #[async_trait]
+    impl Candidate for FakeBundled {
+        fn name(&self) -> &'static str {
+            "fake"
+        }
+        async fn start(&self) -> anyhow::Result<Running> {
+            self.starts.fetch_add(1, Ordering::SeqCst);
+            anyhow::ensure!(self.ok, "model missing");
+            Ok(Running { provider: Arc::new(Says("bundled")), child: None })
+        }
+    }
+
+    fn switch(kind: LocalEngineKind, ok: bool) -> (Arc<SwitchProvider>, Arc<AtomicUsize>) {
+        let starts = Arc::new(AtomicUsize::new(0));
+        let local = LocalEngine::new(vec![Box::new(FakeBundled { ok, starts: starts.clone() })]);
+        let settings = Arc::new(Mutex::new(Settings { local_engine: kind, ..Default::default() }));
+        (Arc::new(SwitchProvider { settings, local }), starts)
+    }
+
+    #[tokio::test]
+    async fn switch_provider_uses_local_engine_when_bundled() {
+        let (sp, starts) = switch(LocalEngineKind::Bundled, true);
+        let d = deps(Arc::new(FakePlatform::new(vec![field("", 1)])), "hello there", sp.clone());
+        assert_eq!(inserted(&process(&d, speech()).await).2, "bundled");
+        assert_eq!(starts.load(Ordering::SeqCst), 1);
+        assert!(!sp.paused());
+    }
+
+    #[tokio::test]
+    async fn switch_provider_uses_ollama_for_upgraders() {
+        let (sp, starts) = switch(LocalEngineKind::Ollama, true);
+        assert_eq!(sp.base_timeout(), OllamaProvider::default().base_timeout());
+        // Ollama may or may not run on this machine; either way the bundled engine never answers.
+        let r = tokio::time::timeout(Duration::from_millis(500), sp.clean("s", "hello there")).await;
+        assert!(!matches!(r, Ok(Ok(ref t)) if t == "bundled"));
+        assert_eq!(starts.load(Ordering::SeqCst), 0);
+        assert!(!sp.paused());
+    }
+
+    #[tokio::test]
+    async fn switch_provider_reports_paused_when_no_engine_starts() {
+        let (sp, _) = switch(LocalEngineKind::Bundled, false);
+        let d = deps(Arc::new(FakePlatform::new(vec![field("", 1)])), "hello there", sp.clone());
+        assert!(matches!(process(&d, speech()).await, Outcome::Inserted { cleanup_skipped: true, .. }));
+        assert!(sp.paused());
     }
 
     #[tokio::test]

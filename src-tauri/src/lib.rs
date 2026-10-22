@@ -4,16 +4,22 @@ pub mod dictation;
 pub mod engine;
 pub mod gesture;
 pub mod hotkey;
+pub mod local_engine;
+pub mod machine;
 pub mod observe;
 pub mod platform;
 
 use commands::AppState;
 use dictation::{Controller, Deps, Emit, now_ms};
 use engine::{LazyAsr, SwitchProvider};
+use local_engine::LocalEngine;
+use shabdly_core::model_store::model_dir;
+use shabdly_core::models::{CATALOG, EngineKind, ModelSpec};
 use shabdly_core::pipeline::{unload, warm_up};
 use shabdly_core::providers::OllamaProvider;
-use shabdly_core::settings::{ProviderKind, Settings};
+use shabdly_core::settings::{LocalEngineKind, ProviderKind, Settings};
 use shabdly_core::store;
+use std::path::Path;
 use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};
 use std::sync::mpsc::channel;
 use std::sync::{Arc, Mutex};
@@ -72,6 +78,13 @@ fn place_overlay(app: &AppHandle) {
     }
 }
 
+/// The Mac llama-server backup for an MLX model: the GGUF of the same speed, when it is on disk.
+fn gguf_fallback(data_dir: &Path, spec: Option<&ModelSpec>) -> Option<&'static ModelSpec> {
+    let spec = spec.filter(|s| s.engine == EngineKind::Mlx)?;
+    let g = CATALOG.iter().find(|g| g.engine == EngineKind::Llama && g.speed == spec.speed)?;
+    model_dir(&data_dir.join("models"), g).join(g.files[0].name).exists().then_some(g)
+}
+
 pub fn show_main(app: &AppHandle) {
     if let Some(w) = app.get_webview_window("main") {
         let _ = w.show();
@@ -89,10 +102,16 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let settings: Settings = store::load_or_set_aside(&data_dir.join("settings.json"));
     let settings = Arc::new(Mutex::new(settings));
     let asr = Arc::new(LazyAsr::new(data_dir.join("models"), settings.clone()));
+
+    // A helper left behind by a force-quit goes first; then the fallback chain for this machine.
+    local_engine::kill_stale(&data_dir);
+    let engines_dir = app.path().resource_dir()?.join("engines");
+    let spec = machine::chosen_spec(&settings.lock().unwrap(), &engines_dir);
+    let local = LocalEngine::new(local_engine::chain(&data_dir, &engines_dir, spec, gguf_fallback(&data_dir, spec)));
     let deps = Arc::new(Deps {
         platform: platform::current(),
         asr: asr.clone(),
-        provider: Arc::new(SwitchProvider { settings: settings.clone() }),
+        provider: Arc::new(SwitchProvider { settings: settings.clone(), local: local.clone() }),
         dict: Arc::new(Mutex::new(store::load_or_set_aside(&data_dir.join("dictionary.json")))),
         history: Arc::new(Mutex::new(store::load_or_set_aside(&data_dir.join("history.json")))),
         settings: settings.clone(),
@@ -132,12 +151,19 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let warm = Arc::new(AtomicBool::new(false));
     Controller::spawn(deps.clone(), ctl_rx, emit, warm.clone(), tauri::async_runtime::handle().inner().clone());
 
-    // Keep the local model loaded so dictations are fast (spec s6).
-    let local = settings.lock().unwrap().provider == ProviderKind::Local;
-    let w = warm.clone();
+    // Start the local engine (or load Ollama's model) so dictations are fast; `warm` once settled.
+    let (provider, engine) = {
+        let s = settings.lock().unwrap();
+        (s.provider, s.local_engine)
+    };
+    let (w, l) = (warm.clone(), local.clone());
     tauri::async_runtime::spawn(async move {
-        if local {
-            let _ = warm_up(&OllamaProvider::default()).await;
+        match (provider, engine) {
+            (ProviderKind::Local, LocalEngineKind::Bundled) => l.ensure().await,
+            (ProviderKind::Local, LocalEngineKind::Ollama) => {
+                let _ = warm_up(&OllamaProvider::default()).await;
+            }
+            _ => {}
         }
         w.store(true, Ordering::SeqCst);
     });
@@ -184,7 +210,7 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     };
     tray.build(app)?;
 
-    app.manage(AppState { deps, hotkey: Mutex::new(hotkey), warm, last_hotkey_ms, hotkey_tx: raw_tx });
+    app.manage(AppState { deps, hotkey: Mutex::new(hotkey), warm, last_hotkey_ms, hotkey_tx: raw_tx, local });
     if first_run {
         show_main(app.handle());
     }
@@ -243,10 +269,17 @@ pub fn run() {
             show_main(app);
         }
         if let RunEvent::Exit = event {
-            // Free the local model's memory; never block quitting for long.
-            tauri::async_runtime::block_on(async {
-                let _ = tokio::time::timeout(Duration::from_secs(1), unload(&OllamaProvider::default())).await;
-            });
+            // Stop the helper, or free Ollama's model memory; never block quitting for long.
+            if let Some(state) = app.try_state::<AppState>() {
+                state.local.stop();
+                let s = state.deps.settings.lock().unwrap_or_else(|e| e.into_inner());
+                if s.local_engine == LocalEngineKind::Ollama {
+                    drop(s);
+                    tauri::async_runtime::block_on(async {
+                        let _ = tokio::time::timeout(Duration::from_secs(1), unload(&OllamaProvider::default())).await;
+                    });
+                }
+            }
             if let Some(asr) = app.try_state::<Arc<LazyAsr>>() {
                 asr.unload();
             }

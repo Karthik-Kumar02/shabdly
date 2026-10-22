@@ -1,13 +1,15 @@
 //! Live release gate (spec section 6): 15/15 cases pass and at least 14 outputs end in `.`, `?` or `!`.
 //! Default backend is Ollama with gemma4:e4b. Others come from env:
 //! BENCH_BACKEND=ollama|openai, BENCH_URL, BENCH_MODEL, BENCH_TOKEN (openai only).
+//! BENCH_PUNCT_FIX=1 applies `finish_sentence`, as `LocalEngine` does for the fast (E2B) models.
 //! Run: cargo test --release -p shabdly-core --test spike_cases -- --ignored --nocapture
 mod common;
 use serde::Deserialize;
-use shabdly_core::pipeline::clean;
+use async_trait::async_trait;
+use shabdly_core::pipeline::{clean, finish_sentence};
 use shabdly_core::providers::{CleanupProvider, OllamaProvider, OpenAiProvider};
 use shabdly_core::settings::Language;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 #[derive(Deserialize)]
 struct Case {
@@ -20,7 +22,24 @@ struct Case {
     must_not_words: Vec<String>,
 }
 
+struct Punctuated(Box<dyn CleanupProvider>);
+
+#[async_trait]
+impl CleanupProvider for Punctuated {
+    fn base_timeout(&self) -> Duration {
+        self.0.base_timeout()
+    }
+    async fn clean(&self, system: &str, text: &str) -> anyhow::Result<String> {
+        self.0.clean(system, text).await.map(|t| finish_sentence(&t))
+    }
+}
+
 fn provider() -> Box<dyn CleanupProvider> {
+    let p = backend();
+    if std::env::var("BENCH_PUNCT_FIX").is_ok_and(|v| v == "1") { Box::new(Punctuated(p)) } else { p }
+}
+
+fn backend() -> Box<dyn CleanupProvider> {
     let env = |k: &str| std::env::var(k).ok();
     match env("BENCH_BACKEND").as_deref() {
         Some("openai") => Box::new(OpenAiProvider {

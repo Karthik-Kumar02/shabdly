@@ -3,7 +3,7 @@ use async_trait::async_trait;
 use common::dict;
 use serde_json::json;
 use shabdly_core::dictionary::Dictionary;
-use shabdly_core::pipeline::{clean, timeout_for};
+use shabdly_core::pipeline::{clean, finish_sentence, timeout_for};
 use shabdly_core::prompt::system_prompt;
 use shabdly_core::providers::{
     CleanupProvider, ollama_body, openai_body, parse_anthropic, parse_gemini, parse_ollama, parse_openai,
@@ -176,4 +176,45 @@ fn parse_openai_reads_content() {
 fn parse_openai_rejects_length_cutoff() {
     let v = json!({"choices": [{"finish_reason": "length", "message": {"content": "  Hi. "}}]});
     assert!(parse_openai(&v).is_err());
+}
+
+#[test]
+fn finish_sentence_leaves_punctuated_text_alone() {
+    for s in ["Ship it on Friday.", "kya hua?", "wow!", "मैं कल आऊंगा।", "He said \"hi.\"", "", "  "] {
+        assert_eq!(finish_sentence(s), s);
+    }
+}
+
+#[test]
+fn finish_sentence_adds_period_and_capital() {
+    assert_eq!(finish_sentence("bhai kal milte hain na"), "Bhai kal milte hain na.");
+    assert_eq!(finish_sentence("Let's meet at 6 pm "), "Let's meet at 6 pm.");
+    // A brand written in lower camel case keeps its first letter.
+    assert_eq!(finish_sentence("iPhone wala order aa gaya"), "iPhone wala order aa gaya.");
+    // Only the last sentence is checked.
+    assert_eq!(finish_sentence("Done. what about lunch"), "Done. What about lunch?");
+    assert_eq!(finish_sentence("मैं कल मार्केट जाऊंगा"), "मैं कल मार्केट जाऊंगा।");
+}
+
+#[test]
+fn finish_sentence_spots_questions() {
+    for (s, want) in [
+        ("kya tumne PDF bhej di", "Kya tumne PDF bhej di?"),
+        ("biryani kaise banate hain", "Biryani kaise banate hain?"),
+        ("tum kab aa rahe ho", "Tum kab aa rahe ho?"),
+        ("what time is the meeting", "What time is the meeting?"),
+        ("Can you ask Karthik to push the changes", "Can you ask Karthik to push the changes?"),
+        ("where should we eat tonight", "Where should we eat tonight?"),
+        ("क्या तुमने खाना खाया", "क्या तुमने खाना खाया?"),
+    ] {
+        assert_eq!(finish_sentence(s), want);
+    }
+    // Statements that start like questions.
+    for (s, want) in [
+        ("when you get a chance send me the deck", "When you get a chance send me the deck."),
+        ("When the meeting ends, ping me", "When the meeting ends, ping me."),
+        ("do the dishes", "Do the dishes."),
+    ] {
+        assert_eq!(finish_sentence(s), want);
+    }
 }
