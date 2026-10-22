@@ -9,5 +9,7 @@ fn main() {
             println!("cargo:rustc-link-lib=static=clang_rt.osx");
         }
     }
+    // The bundled engines are fetched by scripts/fetch-llama.*; an empty folder keeps plain builds working.
+    std::fs::create_dir_all("engines").expect("create src-tauri/engines");
     tauri_build::build()
 }
