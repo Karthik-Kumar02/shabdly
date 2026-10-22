@@ -25,3 +25,7 @@ dist-ssr
 
 target/
 *.bin
+
+engine-mac/build/
+engine-mac/.build/
+src-tauri/engines/
