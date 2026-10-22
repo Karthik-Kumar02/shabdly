@@ -5,7 +5,9 @@ use serde_json::json;
 use shabdly_core::dictionary::Dictionary;
 use shabdly_core::pipeline::{clean, timeout_for};
 use shabdly_core::prompt::system_prompt;
-use shabdly_core::providers::{CleanupProvider, ollama_body, parse_anthropic, parse_gemini, parse_ollama};
+use shabdly_core::providers::{
+    CleanupProvider, ollama_body, openai_body, parse_anthropic, parse_gemini, parse_ollama, parse_openai,
+};
 use shabdly_core::settings::Language;
 use std::time::Duration;
 
@@ -151,4 +153,27 @@ fn ollama_request_sets_context_window() {
     assert_eq!(b["options"]["num_ctx"], 8192);
     assert_eq!(b["options"]["temperature"], 0);
     assert_eq!(b["think"], false);
+}
+
+#[test]
+fn openai_body_has_fixed_params() {
+    let b = openai_body("gemma-4-e4b", "sys", "hi");
+    assert_eq!(b["temperature"], 0);
+    assert_eq!(b["max_tokens"], 4096);
+    assert_eq!(b["chat_template_kwargs"]["enable_thinking"], false);
+    assert_eq!(b["messages"][0]["role"], "system");
+    assert_eq!(b["messages"][1]["role"], "user");
+    assert_eq!(b["messages"][1]["content"], "hi");
+}
+
+#[test]
+fn parse_openai_reads_content() {
+    let v = json!({"choices": [{"finish_reason": "stop", "message": {"content": "  Hi. "}}]});
+    assert_eq!(parse_openai(&v).unwrap(), "Hi.");
+}
+
+#[test]
+fn parse_openai_rejects_length_cutoff() {
+    let v = json!({"choices": [{"finish_reason": "length", "message": {"content": "  Hi. "}}]});
+    assert!(parse_openai(&v).is_err());
 }

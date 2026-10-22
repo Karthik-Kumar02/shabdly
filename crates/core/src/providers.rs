@@ -71,6 +71,45 @@ impl CleanupProvider for OllamaProvider {
     }
 }
 
+/// Any server speaking OpenAI-style `/v1/chat/completions`: the bundled MLX helper and llama-server.
+pub struct OpenAiProvider {
+    pub base_url: String,
+    pub token: String,
+    pub model: String,
+}
+
+pub fn openai_body(model: &str, system: &str, text: &str) -> Value {
+    json!({
+        "model": model, "stream": false, "temperature": 0,
+        // Room for a several-minute transcript; a cut-off reply is rejected by `parse_openai`.
+        "max_tokens": 4096,
+        "chat_template_kwargs": {"enable_thinking": false},
+        "messages": [{"role": "system", "content": system}, {"role": "user", "content": text}],
+    })
+}
+
+pub fn parse_openai(v: &Value) -> anyhow::Result<String> {
+    let choice = v.pointer("/choices/0").ok_or_else(|| anyhow!("no choices"))?;
+    // Cut-off text must not be inserted as if complete; the raw transcript is used instead.
+    if choice.get("finish_reason").and_then(Value::as_str) == Some("length") {
+        bail!("cleanup output was cut off");
+    }
+    let s = choice.pointer("/message/content").and_then(Value::as_str).ok_or_else(|| anyhow!("no message content"))?;
+    Ok(s.trim().to_string())
+}
+
+#[async_trait]
+impl CleanupProvider for OpenAiProvider {
+    fn base_timeout(&self) -> Duration {
+        Duration::from_secs(8)
+    }
+    async fn clean(&self, system: &str, text: &str) -> anyhow::Result<String> {
+        let body = openai_body(&self.model, system, text);
+        let req = client().post(format!("{}/v1/chat/completions", self.base_url)).bearer_auth(&self.token).json(&body);
+        parse_openai(&post(req).await?)
+    }
+}
+
 pub struct GeminiProvider {
     pub key: String,
     pub model: String,
