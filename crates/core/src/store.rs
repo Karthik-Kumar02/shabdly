@@ -36,3 +36,14 @@ pub fn load_or_set_aside<T: DeserializeOwned + Default>(path: &Path) -> T {
         T::default()
     })
 }
+
+/// Copy `settings.json` to `settings.v1.json` once, before this version first rewrites it,
+/// so a downgrade to 0.1.5 can restore the original.
+pub fn backup_v1_once(dir: &Path) {
+    let backup = dir.join("settings.v1.json");
+    if !backup.exists() {
+        if let Err(e) = std::fs::copy(dir.join("settings.json"), &backup) {
+            eprintln!("settings backup: {e}");
+        }
+    }
+}

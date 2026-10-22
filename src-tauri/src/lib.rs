@@ -83,6 +83,9 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let data_dir = app.path().app_data_dir()?;
     std::fs::create_dir_all(data_dir.join("models"))?;
     let first_run = !data_dir.join("settings.json").exists();
+    if !first_run {
+        store::backup_v1_once(&data_dir);
+    }
     let settings: Settings = store::load_or_set_aside(&data_dir.join("settings.json"));
     let settings = Arc::new(Mutex::new(settings));
     let asr = Arc::new(LazyAsr::new(data_dir.join("models"), settings.clone()));

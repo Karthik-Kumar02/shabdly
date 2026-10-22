@@ -13,6 +13,9 @@ export type Settings = {
   learn_from_corrections: boolean;
   keep_history: boolean;
   whisper_model: string;
+  local_engine: "bundled" | "ollama";
+  speed: "best" | "fast" | null;
+  builtin_offer_done: boolean;
 };
 type Entry = {
   word: string;

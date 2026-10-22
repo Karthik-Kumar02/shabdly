@@ -1,6 +1,6 @@
 use shabdly_core::dictionary::Dictionary;
 use shabdly_core::history::{History, HistoryItem};
-use shabdly_core::settings::{Language, ProviderKind, Settings};
+use shabdly_core::settings::{Language, LocalEngineKind, ProviderKind, Settings};
 use shabdly_core::store;
 
 fn item(at_ms: i64) -> HistoryItem {
@@ -125,4 +125,56 @@ fn corrupt_file_is_set_aside_not_overwritten() {
     // A missing file is just the default, nothing set aside.
     let _: shabdly_core::dictionary::Dictionary = load_or_set_aside(&dir.path().join("history.json"));
     assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 1);
+}
+
+#[test]
+fn v1_file_loads_as_ollama_upgrader() {
+    let v1 = r#"{"version":1,"language":"auto","provider":"local","hotkey":"Fn","learn_from_corrections":true,"keep_history":true,"whisper_model":"ggml-large-v3-turbo-q8_0.bin"}"#;
+    let s: Settings = serde_json::from_str(v1).unwrap();
+    assert_eq!(s.local_engine, LocalEngineKind::Ollama);
+    assert_eq!(s.speed, None);
+    assert!(!s.builtin_offer_done);
+}
+
+#[test]
+fn new_install_defaults_to_bundled() {
+    let s = Settings::default();
+    assert_eq!(s.local_engine, LocalEngineKind::Bundled);
+    assert!(s.builtin_offer_done);
+}
+
+#[test]
+fn v2_file_still_parses_with_015_struct() {
+    // The 0.1.5 types, copied as they shipped: a v2 file must not trip them.
+    #[derive(serde::Deserialize)]
+    #[serde(rename_all = "snake_case")]
+    #[allow(dead_code)]
+    enum Language015 { English, Hindi, Hinglish, Auto }
+    #[derive(serde::Deserialize)]
+    #[serde(rename_all = "snake_case")]
+    #[allow(dead_code)]
+    enum ProviderKind015 { Local, GeminiFree, GeminiPaid, Haiku }
+    #[derive(serde::Deserialize)]
+    #[allow(dead_code)]
+    struct Settings015 {
+        version: u32,
+        language: Language015,
+        provider: ProviderKind015,
+        hotkey: String,
+        learn_from_corrections: bool,
+        keep_history: bool,
+        whisper_model: String,
+    }
+    let v2 = serde_json::to_string(&Settings::default()).unwrap();
+    serde_json::from_str::<Settings015>(&v2).unwrap();
+}
+
+#[test]
+fn backup_v1_once_copies_only_once() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(dir.path().join("settings.json"), "a").unwrap();
+    store::backup_v1_once(dir.path());
+    std::fs::write(dir.path().join("settings.json"), "b").unwrap();
+    store::backup_v1_once(dir.path());
+    assert_eq!(std::fs::read_to_string(dir.path().join("settings.v1.json")).unwrap(), "a");
 }
