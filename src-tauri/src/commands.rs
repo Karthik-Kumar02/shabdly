@@ -1,6 +1,7 @@
 //! Tauri commands for the settings, dictionary and history windows.
 use crate::dictation::{Deps, now_ms};
 use crate::hotkey::{Hotkey, HotkeyEvent, Tracker};
+use crate::local_engine::LocalEngine;
 use shabdly_core::asr::WHISPER_MODELS;
 use shabdly_core::setup::{self, OllamaStatus};
 use std::sync::mpsc::Sender;
@@ -26,6 +27,8 @@ pub struct AppState {
     pub last_hotkey_ms: Arc<AtomicI64>,
     /// Where a (re)started hotkey listener sends its events.
     pub hotkey_tx: Sender<HotkeyEvent>,
+    /// The bundled cleanup engine (also inside `deps.provider`), stopped on quit.
+    pub local: Arc<LocalEngine>,
 }
 
 type CmdResult<T> = Result<T, String>;

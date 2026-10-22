@@ -1,22 +1,30 @@
 //! The engines behind a dictation, chosen from settings at call time: the
 //! cleanup provider (Local, Gemini, Haiku) and the Whisper model (loaded lazily).
 use crate::commands::api_key;
+use crate::local_engine::{EngineStatus, LocalEngine};
 use anyhow::Context;
 use async_trait::async_trait;
 use shabdly_core::asr::{Transcriber, WhisperAsr};
 use shabdly_core::providers::{CleanupProvider, GeminiProvider, HaikuProvider, OllamaProvider};
-use shabdly_core::settings::{Language, ProviderKind, Settings};
+use shabdly_core::settings::{Language, LocalEngineKind, ProviderKind, Settings};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 pub struct SwitchProvider {
     pub settings: Arc<Mutex<Settings>>,
+    pub local: Arc<LocalEngine>,
 }
 
 impl SwitchProvider {
     fn kind(&self) -> ProviderKind {
         self.settings.lock().unwrap().provider
+    }
+
+    /// Local served by the bundled engine (new installs), not by Ollama (0.1.5 upgraders).
+    fn bundled(&self) -> bool {
+        let s = self.settings.lock().unwrap();
+        s.provider == ProviderKind::Local && s.local_engine == LocalEngineKind::Bundled
     }
 }
 
@@ -24,6 +32,7 @@ impl SwitchProvider {
 impl CleanupProvider for SwitchProvider {
     fn base_timeout(&self) -> Duration {
         match self.kind() {
+            ProviderKind::Local if self.bundled() => self.local.base_timeout(),
             ProviderKind::Local => OllamaProvider::default().base_timeout(),
             _ => Duration::from_secs(30),
         }
@@ -31,6 +40,13 @@ impl CleanupProvider for SwitchProvider {
 
     async fn clean(&self, system: &str, text: &str) -> anyhow::Result<String> {
         match self.kind() {
+            ProviderKind::Local if self.bundled() => {
+                // Switched to the bundled engine after launch: start it now.
+                if self.local.status() == EngineStatus::Starting {
+                    self.local.ensure().await;
+                }
+                self.local.clean(system, text).await
+            }
             ProviderKind::Local => OllamaProvider::default().clean(system, text).await,
             ProviderKind::GeminiFree | ProviderKind::GeminiPaid => {
                 let key = api_key("gemini").context("no Gemini API key saved")?;
@@ -41,6 +57,10 @@ impl CleanupProvider for SwitchProvider {
                 HaikuProvider { key }.clean(system, text).await
             }
         }
+    }
+
+    fn paused(&self) -> bool {
+        self.bundled() && matches!(self.local.status(), EngineStatus::Paused { .. })
     }
 }
 

@@ -9,6 +9,10 @@ use std::time::Duration;
 pub trait CleanupProvider: Send + Sync {
     fn base_timeout(&self) -> Duration;
     async fn clean(&self, system: &str, text: &str) -> anyhow::Result<String>;
+    /// No engine could start, so every dictation types the raw transcript.
+    fn paused(&self) -> bool {
+        false
+    }
 }
 
 fn client() -> reqwest::Client {
