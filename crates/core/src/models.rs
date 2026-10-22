@@ -1,5 +1,5 @@
 //! Cleanup model catalog (spec section 2): every file pinned to a Hugging Face commit with
-//! its size and sha256, plus the default pick by OS, macOS version and RAM.
+//! its size and sha256, plus the pick by OS and macOS version and whether RAM allows Best.
 use crate::settings::Speed;
 
 /// Shabdly's own copies of every catalog file, used when the primary URL fails.
@@ -45,55 +45,63 @@ const fn f(name: &'static str, size: u64, sha256: &'static str, url: &'static st
     }
 }
 
-// mlx-community/gemma-4-e4b-it-4bit at 475b9088d29754a3379866cf5aeb6b41acd313c2
+// mlx-community/gemma-4-e4b-it-5bit at e648f3767cea9a0b1b5b54b16cb1735b13e8f51c
+// 5-bit, not 4-bit: on the Swift helper the 4-bit build translated case 8 (14/15, spec risk Q2);
+// 5-bit passes 15/15 with a 478 to 493 ms median on the M5 (user accepted over 450 ms, 2026-10-22).
 const E4B_MLX: &[ModelFile] = &[
     f(
         "chat_template.jinja",
         17336,
         "2f1b4d75d067bae3fe44e676721c7f077d243bc007156cb9c2f8b5836613d082",
-        "https://huggingface.co/mlx-community/gemma-4-e4b-it-4bit/resolve/475b9088d29754a3379866cf5aeb6b41acd313c2/chat_template.jinja",
+        "https://huggingface.co/mlx-community/gemma-4-e4b-it-5bit/resolve/e648f3767cea9a0b1b5b54b16cb1735b13e8f51c/chat_template.jinja",
     ),
     f(
         "config.json",
         6628,
-        "780ccb3a514a5f1ced161d383f948fc22eca9b84b752ca19494f625bd9bad7a6",
-        "https://huggingface.co/mlx-community/gemma-4-e4b-it-4bit/resolve/475b9088d29754a3379866cf5aeb6b41acd313c2/config.json",
+        "3d70703016aaf06d58760450b6bcaafc79fc5364fb3ea8d2a03c40a291a4385e",
+        "https://huggingface.co/mlx-community/gemma-4-e4b-it-5bit/resolve/e648f3767cea9a0b1b5b54b16cb1735b13e8f51c/config.json",
     ),
     f(
         "generation_config.json",
         208,
         "d4226bbe3117d2d253ba4609720ba82c6c4ce4627a9a6ae05387c78983ac03de",
-        "https://huggingface.co/mlx-community/gemma-4-e4b-it-4bit/resolve/475b9088d29754a3379866cf5aeb6b41acd313c2/generation_config.json",
+        "https://huggingface.co/mlx-community/gemma-4-e4b-it-5bit/resolve/e648f3767cea9a0b1b5b54b16cb1735b13e8f51c/generation_config.json",
     ),
     f(
-        "model.safetensors",
-        5146800534,
-        "932b8271fc3fe65adcc78b96c10c6268bbfb13e8f67d1358727c0d6ee97e1eff",
-        "https://huggingface.co/mlx-community/gemma-4-e4b-it-4bit/resolve/475b9088d29754a3379866cf5aeb6b41acd313c2/model.safetensors",
+        "model-00001-of-00002.safetensors",
+        5367389748,
+        "e4f38cc0f9ae1806f5693011dec3403f62ecc3ef97437eacfe15e79f1d185149",
+        "https://huggingface.co/mlx-community/gemma-4-e4b-it-5bit/resolve/e648f3767cea9a0b1b5b54b16cb1735b13e8f51c/model-00001-of-00002.safetensors",
+    ),
+    f(
+        "model-00002-of-00002.safetensors",
+        712953326,
+        "86f74a73371cac7e06e9a7cdc6fea75eb90fd4eaaad2798d0111603624be3a99",
+        "https://huggingface.co/mlx-community/gemma-4-e4b-it-5bit/resolve/e648f3767cea9a0b1b5b54b16cb1735b13e8f51c/model-00002-of-00002.safetensors",
     ),
     f(
         "model.safetensors.index.json",
-        240961,
-        "f8accac59ee7efe87e0c298c854610b262c3cadd477407503147c71209ff0093",
-        "https://huggingface.co/mlx-community/gemma-4-e4b-it-4bit/resolve/475b9088d29754a3379866cf5aeb6b41acd313c2/model.safetensors.index.json",
+        282511,
+        "f6619883e1cc02e52cef068bd4ddbffa49ad3beaecfd4c7bf82a37fc705e0990",
+        "https://huggingface.co/mlx-community/gemma-4-e4b-it-5bit/resolve/e648f3767cea9a0b1b5b54b16cb1735b13e8f51c/model.safetensors.index.json",
     ),
     f(
         "processor_config.json",
         1316,
         "de3e580aebdc98272d4c4547daffe6525fcbae18a83a0e0bcf0d7444d4ee6f37",
-        "https://huggingface.co/mlx-community/gemma-4-e4b-it-4bit/resolve/475b9088d29754a3379866cf5aeb6b41acd313c2/processor_config.json",
+        "https://huggingface.co/mlx-community/gemma-4-e4b-it-5bit/resolve/e648f3767cea9a0b1b5b54b16cb1735b13e8f51c/processor_config.json",
     ),
     f(
         "tokenizer.json",
         32169626,
         "cc8d3a0ce36466ccc1278bf987df5f71db1719b9ca6b4118264f45cb627bfe0f",
-        "https://huggingface.co/mlx-community/gemma-4-e4b-it-4bit/resolve/475b9088d29754a3379866cf5aeb6b41acd313c2/tokenizer.json",
+        "https://huggingface.co/mlx-community/gemma-4-e4b-it-5bit/resolve/e648f3767cea9a0b1b5b54b16cb1735b13e8f51c/tokenizer.json",
     ),
     f(
         "tokenizer_config.json",
         2740,
         "080d9e1aff284e2f6043889cd05367966f7c7b80e025fbc0b06745e218158656",
-        "https://huggingface.co/mlx-community/gemma-4-e4b-it-4bit/resolve/475b9088d29754a3379866cf5aeb6b41acd313c2/tokenizer_config.json",
+        "https://huggingface.co/mlx-community/gemma-4-e4b-it-5bit/resolve/e648f3767cea9a0b1b5b54b16cb1735b13e8f51c/tokenizer_config.json",
     ),
 ];
 
@@ -170,11 +178,11 @@ const E2B_GGUF: &[ModelFile] = &[f(
 // gate, so Task 10 adds the deterministic punctuation fix (spec risk Q1).
 pub static CATALOG: &[ModelSpec] = &[
     ModelSpec {
-        id: "mlx-gemma4-e4b-4bit",
+        id: "mlx-gemma4-e4b-5bit",
         engine: EngineKind::Mlx,
         speed: Speed::Best,
         files: E4B_MLX,
-        ram_gb: 4.4,
+        ram_gb: 4.0,
     },
     ModelSpec {
         id: "mlx-gemma4-e2b",
@@ -199,13 +207,12 @@ pub static CATALOG: &[ModelSpec] = &[
     },
 ];
 
-/// Under 16 GB of RAM, or with no usable GPU, the fast model is the default.
-pub fn default_speed(ram_gb: u64, has_gpu: bool) -> Speed {
-    if ram_gb >= 16 && has_gpu {
-        Speed::Best
-    } else {
-        Speed::Fast
-    }
+/// Every machine starts on the fast model (user decision, 2026-10-22); Best is opt-in.
+pub const DEFAULT_SPEED: Speed = Speed::Fast;
+
+/// Best is offered only with 16 GB of RAM or more and a usable GPU.
+pub fn best_offered(ram_gb: u64, has_gpu: bool) -> bool {
+    ram_gb >= 16 && has_gpu
 }
 
 /// MLX needs macOS 14 or later; older Macs and Windows use llama-server with the GGUF files.

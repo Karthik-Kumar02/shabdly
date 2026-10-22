@@ -1,11 +1,13 @@
-use shabdly_core::models::{CATALOG, EngineKind, MIRROR_BASE, Os, default_speed, mirror_url, pick};
+use shabdly_core::models::{CATALOG, EngineKind, MIRROR_BASE, Os, DEFAULT_SPEED, best_offered, mirror_url, pick};
 use shabdly_core::settings::Speed;
 
 #[test]
-fn ram_tiers() {
-    assert_eq!(default_speed(8, true), Speed::Fast);
-    assert_eq!(default_speed(16, true), Speed::Best);
-    assert_eq!(default_speed(32, false), Speed::Fast);
+fn fast_is_default_and_ram_gates_best() {
+    assert_eq!(DEFAULT_SPEED, Speed::Fast);
+    assert!(!best_offered(8, true));
+    assert!(!best_offered(15, true));
+    assert!(best_offered(16, true));
+    assert!(!best_offered(32, false));
 }
 
 #[test]
@@ -72,15 +74,15 @@ fn catalog_is_well_formed() {
 fn mirror_url_format() {
     let spec = CATALOG
         .iter()
-        .find(|s| s.id == "mlx-gemma4-e4b-4bit")
+        .find(|s| s.id == "mlx-gemma4-e4b-5bit")
         .unwrap();
     let f = spec
         .files
         .iter()
-        .find(|f| f.name == "model.safetensors")
+        .find(|f| f.name == "model-00001-of-00002.safetensors")
         .unwrap();
     assert_eq!(
         mirror_url(spec, f),
-        format!("{MIRROR_BASE}/mlx-gemma4-e4b-4bit/model.safetensors")
+        format!("{MIRROR_BASE}/mlx-gemma4-e4b-5bit/model-00001-of-00002.safetensors")
     );
 }
