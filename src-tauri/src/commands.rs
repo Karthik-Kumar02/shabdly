@@ -397,6 +397,8 @@ fn bundled(s: &Settings) -> bool {
 pub struct ModelsStatus {
     pub speech_ready: bool,
     pub engine_ready: bool,
+    /// False on macOS 11.0 to 13.2: no bundled engine, so setup offers Ollama or a cloud engine.
+    pub engine_offered: bool,
     /// Bytes still to download for both. 0 for the engine on macOS 11.0 to 13.2 (none offered).
     pub bytes_needed: u64,
     pub free_bytes: u64,
@@ -407,13 +409,15 @@ pub async fn models_status(state: State<'_, AppState>) -> CmdResult<ModelsStatus
     let s = state.deps.settings.lock().unwrap().clone();
     let models = models_dir(&state)?;
     let speech = speech_needs(&models, &s.whisper_model);
-    let engine = match machine::chosen_spec(&s, &state.engines_dir) {
+    let spec = machine::chosen_spec(&s, &state.engines_dir);
+    let engine = match spec {
         Some(spec) => engine_needs(models.clone(), spec).await?,
         None => 0,
     };
     Ok(ModelsStatus {
         speech_ready: models.join(&s.whisper_model).exists(),
         engine_ready: engine == 0,
+        engine_offered: spec.is_some(),
         bytes_needed: speech + engine,
         free_bytes: machine::free_bytes(&models),
     })

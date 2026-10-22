@@ -239,6 +239,8 @@ input[type="checkbox"]:focus-visible { outline: none; box-shadow: 0 0 0 3px var(
 .stepdots i.cur { width: 16px; }
 .progress { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; margin: 10px 0; }
 .progress > div { height: 100%; background: linear-gradient(90deg, #b3843f, #e6c582, #fcf0cf); border-radius: 3px; width: 0; transition: width 0.25s; }
+.card .link { display: block; margin: 14px 0 0; padding: 0; border: 0; background: none; box-shadow: none; color: var(--muted); font-size: 12px; font-weight: 400; }
+.card .link:hover:not(:disabled) { color: var(--fg); text-decoration: underline; }
 .practice { display: block; width: 100%; min-height: 90px; margin: 8px 0; border-radius: 10px; resize: vertical; }
 
 /* Overlay: a small ink bead centred in the transparent window. The window can't blur
@@ -310,6 +312,6 @@ html:has(.overlay-body) { background: transparent; }
 }
 @media (prefers-reduced-motion: reduce) {
   .pill, .dots i { animation: none; }
-  nav.ready .indicator, input[type="checkbox"]::after { transition: none; }
+  nav.ready .indicator, input[type="checkbox"]::after, .progress > div { transition: none; }
   button:active:not(:disabled), .filebtn:active { transform: none; }
 }
