@@ -8,6 +8,13 @@
 - Speech recognition: whisper.cpp flash attention was tested and stays off for now, because it changed language detection on real Hindi recordings.
 - macOS 13.2 and earlier: the built-in engine needs macOS 13.3 or later, so keep using Ollama or a cloud engine there.
 
+## Polish
+
+- When cleanup is skipped, the pill says why: no Gemini or Claude key, Ollama not running, took too long, or engine error.
+- Setup's hotkey check only counts the dictation key itself, and a Check again button re-runs it.
+- When another app holds Secure Input, Shabdly copies your text and says so instead of failing quietly.
+- Missed the Undo on a "Learned" toast? The last 10 learned words have Undo under Recently learned in the Dictionary tab.
+
 ## Download
 
 | Your computer | File |
