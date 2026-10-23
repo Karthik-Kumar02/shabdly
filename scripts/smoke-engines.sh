@@ -2,7 +2,7 @@
 # CI smoke test (spec section 5): start each helper bundled inside the built app and fail if it does not
 # answer, so a broken or blocked helper never ships.
 # Usage: scripts/smoke-engines.sh <engines dir of the built app>
-#   Mac:     target/release/bundle/macos/Shabdly.app/Contents/Resources/engines
+#   Mac:     <Shabdly.app>/Contents/Resources/engines (CI mounts the release DMG for this)
 #   Windows: target/release/engines   (run with Git Bash)
 set -eu
 dir=$1

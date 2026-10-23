@@ -93,8 +93,13 @@ jobs:
         with:
           releaseId: ${{ needs.create-release.outputs.id }}
           args: --bundles ${{ matrix.bundles }}
+      # `--bundles dmg` deletes the intermediate .app, so test the helpers inside the DMG that ships.
       - if: runner.os == 'macOS'
-        run: scripts/smoke-engines.sh target/release/bundle/macos/Shabdly.app/Contents/Resources/engines
+        run: |
+          mnt=$(mktemp -d)
+          hdiutil attach -readonly -nobrowse -mountpoint "$mnt" target/release/bundle/dmg/*.dmg
+          scripts/smoke-engines.sh "$mnt/Shabdly.app/Contents/Resources/engines"
+          hdiutil detach "$mnt"
       - if: runner.os == 'Windows'
         shell: bash
         run: scripts/smoke-engines.sh target/release/engines
