@@ -11,7 +11,10 @@ pub struct FieldText {
 pub enum PasteOutcome {
     Pasted,
     Copied,
+    /// A password field: nothing is typed.
     Blocked,
+    /// Secure input is on but the field is not a password field: another app holds it.
+    SecureInput,
 }
 
 #[derive(Debug, Clone)]
@@ -99,8 +102,11 @@ pub fn insert_into(platform: &dyn Platform, text: &str) -> (PasteOutcome, Option
         (outcome, None)
     };
     let Some(field) = field else { return copy(PasteOutcome::Copied) };
-    if field.is_password || platform.secure_input() {
+    if field.is_password {
         return copy(PasteOutcome::Blocked);
+    }
+    if platform.secure_input() {
+        return copy(PasteOutcome::SecureInput);
     }
     // ponytail: caret position unknown, so the end of the value stands in for "before the caret".
     let needs_space = field.value.chars().last().is_some_and(|c| !c.is_whitespace());
@@ -140,9 +146,18 @@ mod tests {
         assert_eq!(clip_text(&p).as_deref(), Some("secret words"));
         assert!(p.pastes().is_empty());
 
-        let p = FakePlatform::new(vec![field("", false)]);
+        // A password field stays Blocked even with secure input on.
+        let p = FakePlatform::new(vec![field("", true)]);
         p.set_secure_input(true);
         assert_eq!(insert(&p, "x"), PasteOutcome::Blocked);
+    }
+
+    #[test]
+    fn insert_names_secure_input_held_by_another_app() {
+        let p = FakePlatform::new(vec![field("", false)]);
+        p.set_secure_input(true);
+        assert_eq!(insert(&p, "x"), PasteOutcome::SecureInput);
+        assert_eq!(clip_text(&p).as_deref(), Some("x"));
         assert!(p.pastes().is_empty());
     }
 

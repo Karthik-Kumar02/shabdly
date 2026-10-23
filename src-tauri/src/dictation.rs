@@ -48,6 +48,7 @@ pub enum Outcome {
     Inserted { text: String, skipped: Option<Skip>, at_ms: i64, element_id: u64 },
     Copied { text: String },
     Blocked { text: String },
+    SecureInput { text: String },
     Empty,
     Failed { message: String },
 }
@@ -147,6 +148,7 @@ pub async fn process(deps: &Deps, samples_16k: Vec<f32>) -> Outcome {
             Outcome::Inserted { text, skipped: cleaned.skipped, at_ms, element_id: f.element_id }
         }
         (PasteOutcome::Blocked, _) => Outcome::Blocked { text },
+        (PasteOutcome::SecureInput, _) => Outcome::SecureInput { text },
         _ => Outcome::Copied { text },
     }
 }
@@ -313,6 +315,9 @@ fn run(
                         Outcome::Blocked { .. } => {
                             return overlay(&emit, "error", Some("Can't type into password fields"));
                         }
+                        Outcome::SecureInput { .. } => {
+                            return overlay(&emit, "error", Some("Another app is blocking typing (Secure Input). Text copied."));
+                        }
                         Outcome::Empty => return overlay(&emit, "hidden", None),
                         Outcome::Failed { message } => return overlay(&emit, "error", Some(&message)),
                     };
@@ -447,6 +452,15 @@ pub(crate) mod tests {
         assert_eq!(d.history.lock().unwrap().items[0].cleaned, "my secret note");
         assert!(matches!(p.snapshot_clipboard(), ClipboardSnapshot::Text(t) if t == "my secret note"));
         assert!(p.pastes().is_empty());
+    }
+
+    #[tokio::test]
+    async fn secure_input_elsewhere_copies() {
+        let p = Arc::new(FakePlatform::new(vec![field("", 1)]));
+        p.set_secure_input(true);
+        let d = deps(p.clone(), "hello there", Arc::new(Echo));
+        assert_eq!(process(&d, speech()).await, Outcome::SecureInput { text: "hello there".into() });
+        assert!(matches!(p.snapshot_clipboard(), ClipboardSnapshot::Text(t) if t == "hello there"));
     }
 
     #[tokio::test]
