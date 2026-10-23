@@ -3,7 +3,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { collapse, enter, flip, leave } from "./motion";
-import { GLOBE_WARNING, startOnboarding } from "./onboarding";
+import { GLOBE_WARNING, type ModelsStatus, gb, progressBar, startOnboarding } from "./onboarding";
 
 export type Settings = {
   version: number;
@@ -41,8 +41,12 @@ export const LANGUAGES: [Settings["language"], string][] = [
   ["hindi", "Hindi (Devanagari)"],
   ["hinglish", "Hinglish (Roman script)"],
 ];
-const PROVIDERS: [Settings["provider"], string][] = [
-  ["local", "Local (private, free)"],
+type EngineStatus = { state: "starting" | "builtin" | "backup" | "paused"; reason?: string };
+// "ollama" is the picker's name for provider "local" with local_engine "ollama".
+type Choice = Settings["provider"] | "ollama";
+const PROVIDERS: [Choice, string][] = [
+  ["local", "Local (built in)"],
+  ["ollama", "Ollama (advanced)"],
   ["gemini_free", "Gemini free tier (Free, may be slow or skip cleanup when busy)"],
   ["gemini_paid", "Gemini paid"],
   ["haiku", "Claude Haiku"],
@@ -72,6 +76,151 @@ function flash(el: HTMLElement | null, text: string, bad = false) {
   enter(el, 2);
 }
 
+const choice = (s: Settings): Choice => (s.provider === "local" && s.local_engine === "ollama" ? "ollama" : s.provider);
+
+const ENGINE_LINE: Record<EngineStatus["state"], string> = {
+  starting: "Starting engine...",
+  builtin: "Running: built-in engine",
+  backup: "Running: backup engine",
+  paused: "Cleanup paused, typing raw text",
+};
+let oomOffered = false; // "Switch to Fastest?" shows once per app session.
+
+// Speed switch and status line for the built-in engine. Filled in after the page shows, since
+// the first models_status may hash the model files for a few seconds.
+async function renderEngine(box: HTMLElement, s: Settings, status: HTMLElement | null, rerender: () => void) {
+  const m = await invoke<ModelsStatus>("models_status");
+  if (!box.isConnected) return;
+  if (!m.engine_offered) {
+    box.innerHTML = `<div class="eline"><p class="status">The built-in engine needs macOS 13.3 or later. Choose Ollama (advanced) or a cloud engine.</p></div>`;
+    return;
+  }
+  const best = s.speed === "best" && m.best_offered;
+  box.innerHTML = `
+    <label class="r"><span>Speed${m.best_offered ? "" : "<small>Best quality needs 16 GB of memory or more</small>"}</span>
+      <select id="speed"><option value="best" ${best ? "selected" : ""} ${m.best_offered ? "" : "disabled"}>Best quality</option><option value="fast" ${best ? "" : "selected"}>Fastest</option></select></label>
+    <div class="eline"><p class="status" id="st"></p><p class="status" id="oom" hidden></p></div>`;
+  const sel = box.querySelector<HTMLSelectElement>("#speed")!;
+  const line = box.querySelector<HTMLElement>("#st")!;
+  const eline = box.querySelector<HTMLElement>(".eline")!;
+  // Runs a download with the shared progress bar; the current engine keeps answering meanwhile.
+  const download = async (run: () => Promise<unknown>) => {
+    sel.disabled = true;
+    eline.querySelectorAll("button").forEach((b) => (b.disabled = true));
+    const stop = await progressBar(eline, "all");
+    try {
+      await run();
+      flash(status, "Saved");
+      rerender();
+    } catch (e) {
+      flash(status, String(e), true);
+      sel.value = best ? "best" : "fast";
+      sel.disabled = false;
+      eline.querySelectorAll("button").forEach((b) => (b.disabled = false));
+    } finally {
+      stop();
+      eline.querySelectorAll(".progress, #pct").forEach((el) => el.remove());
+    }
+  };
+  const setSpeed = (speed: "best" | "fast") => download(() => invoke("set_speed", { speed }));
+  sel.addEventListener("change", () => setSpeed(sel.value as "best" | "fast"));
+  if (!m.engine_ready) {
+    line.innerHTML = `Built-in model not downloaded <button>Download (${gb(m.bytes_needed)} GB)</button>`;
+    line.querySelector("button")!.addEventListener("click", () => download(() => invoke("download_models")));
+    return;
+  }
+  let shown = "";
+  const tick = async () => {
+    if (!line.isConnected) return clearInterval(timer);
+    const st = await invoke<EngineStatus>("engine_status");
+    if (st.state !== shown) {
+      shown = st.state;
+      line.innerHTML = ENGINE_LINE[st.state] + (st.state === "backup" || st.state === "paused" ? ` <button>Retry</button>` : "");
+      line.querySelector("button")?.addEventListener("click", async () => {
+        shown = "";
+        line.textContent = ENGINE_LINE.starting;
+        await invoke("retry_engine");
+        tick();
+      });
+    }
+    // Best crashing twice in a minute is most likely memory.
+    if (st.reason === "crashed_twice" && best && !oomOffered) {
+      oomOffered = true;
+      const oom = box.querySelector<HTMLElement>("#oom")!;
+      oom.innerHTML = `Shabdly's engine ran out of memory. Switch to Fastest? <button id="sw">Switch</button><button id="no">Not now</button>`;
+      oom.hidden = false;
+      enter(oom, 2);
+      oom.querySelector("#sw")!.addEventListener("click", () => setSpeed("fast"));
+      oom.querySelector("#no")!.addEventListener("click", async () => {
+        await leave(oom);
+        oom.hidden = true;
+      });
+    }
+  };
+  const timer = setInterval(tick, 2000);
+  tick();
+}
+
+// 0.1.5 upgraders on Ollama: switch silently when the built-in model is already on disk,
+// otherwise offer it once in a banner above the page.
+async function offerBuiltin() {
+  const s = await invoke<Settings>("get_settings");
+  if (s.builtin_offer_done || choice(s) !== "ollama") return;
+  const banner = document.getElementById("banner")!;
+  const switched = async () => {
+    if (!(await invoke<boolean>("try_builtin_switch"))) return false;
+    banner.innerHTML = `<p class="status">Now using the built-in engine (2x faster)</p>`;
+    enter(banner, 4);
+    // The window may still be hidden in the tray: the note stays 6 s after it is first seen.
+    const hide = () =>
+      setTimeout(async () => {
+        await leave(banner);
+        banner.innerHTML = "";
+      }, 6000);
+    document.hasFocus() ? hide() : window.addEventListener("focus", hide, { once: true });
+    const panel = document.getElementById("panel");
+    if (panel && current === "Settings") renderSettings(panel);
+    return true;
+  };
+  if (await switched()) return;
+  const m = await invoke<ModelsStatus>("models_status");
+  if (!m.engine_offered || m.engine_ready) return; // Ready but would not start: stay on Ollama.
+  banner.innerHTML = `
+    <div class="card banner">
+      <p>New built-in engine: 2x faster, uses less memory, no Ollama needed.</p>
+      <div class="row"><button class="primary" id="bdl">Download (${gb(m.bytes_needed)} GB)</button><button id="bno">Not now</button></div>
+      <p class="status" id="bst" hidden></p>
+    </div>`;
+  enter(banner, 4);
+  const card = banner.querySelector<HTMLElement>(".banner")!;
+  const btns = [...card.querySelectorAll("button")];
+  const close = async () => {
+    await leave(banner);
+    banner.innerHTML = "";
+  };
+  card.querySelector("#bno")!.addEventListener("click", async () => {
+    await invoke("dismiss_builtin_offer");
+    close();
+  });
+  card.querySelector("#bdl")!.addEventListener("click", async () => {
+    const st = card.querySelector<HTMLElement>("#bst")!;
+    st.hidden = true;
+    btns.forEach((b) => (b.disabled = true));
+    const stop = await progressBar(card, "all");
+    try {
+      await invoke("download_models");
+      if (!(await switched())) close(); // The test cleanup failed: stay on Ollama, quietly.
+    } catch (e) {
+      st.hidden = false;
+      flash(st, String(e), true);
+      btns.forEach((b) => (b.disabled = false));
+    } finally {
+      stop();
+      card.querySelectorAll(".progress, #pct").forEach((el) => el.remove());
+    }
+  });
+}
+
 function keyProvider(p: Settings["provider"]) {
   return p === "haiku" ? "anthropic" : p === "local" ? null : "gemini";
 }
@@ -90,7 +239,8 @@ async function renderSettings(root: HTMLElement) {
     <p id="globe" class="status bad"></p>
     <h2 class="grp">Engine</h2>
     <div class="card">
-      <label class="r"><span>Cleanup engine<small>${hint}</small></span><select id="provider">${options(PROVIDERS, s.provider)}</select></label>
+      <label class="r"><span>Cleanup engine<small>${hint}</small></span><select id="provider">${options(PROVIDERS, choice(s))}</select></label>
+      ${choice(s) === "local" ? `<div id="eng"></div>` : ""}
       ${
         kp
           ? `<div class="r"><label for="apikey">${kp === "gemini" ? "Gemini" : "Anthropic"} API key</label>
@@ -110,7 +260,9 @@ async function renderSettings(root: HTMLElement) {
   const status = root.querySelector<HTMLElement>("#status");
   const save = async (patch: Partial<Settings>, rerender = false) => {
     try {
-      await invoke("set_settings", { settings: { ...s, ...patch } });
+      // Fresh copy: the banner, the Speed switch and the silent switch also change settings.
+      const cur = await invoke<Settings>("get_settings");
+      await invoke("set_settings", { settings: { ...cur, ...patch } });
       Object.assign(s, patch);
       flash(status, "Saved");
       if (rerender) renderSettings(root);
@@ -120,7 +272,14 @@ async function renderSettings(root: HTMLElement) {
   };
   const val = (id: string) => root.querySelector<HTMLSelectElement>(id)!.value;
   root.querySelector("#language")!.addEventListener("change", () => save({ language: val("#language") as Settings["language"] }));
-  root.querySelector("#provider")!.addEventListener("change", () => save({ provider: val("#provider") as Settings["provider"] }, true));
+  root.querySelector("#provider")!.addEventListener("change", async () => {
+    const v = val("#provider") as Choice;
+    await save(v === "ollama" ? { provider: "local", local_engine: "ollama" } : v === "local" ? { provider: "local", local_engine: "bundled" } : { provider: v }, true);
+    // Cloud and Ollama users have no helper running yet.
+    if (choice(s) === "local") invoke("retry_engine");
+  });
+  const eng = root.querySelector<HTMLElement>("#eng");
+  if (eng) renderEngine(eng, s, status, () => renderSettings(root));
   const globe = async () => {
     const el = root.querySelector<HTMLElement>("#globe")!;
     el.innerHTML = (await invoke<boolean>("globe_key_warning")) ? GLOBE_WARNING : "";
@@ -335,6 +494,7 @@ export function renderApp() {
     </aside>
     <main>
       <header data-tauri-drag-region><h1>${current}</h1></header>
+      <div id="banner"></div>
       <div id="panel"></div>
     </main>`;
   showHotkey();
@@ -343,6 +503,7 @@ export function renderApp() {
   requestAnimationFrame(() => app.querySelector("nav")!.classList.add("ready"));
   enter(app.querySelector("main"), 8);
   renderers[current](document.getElementById("panel")!);
+  offerBuiltin();
 }
 
 // Slide the selection highlight onto the current tab.

@@ -10,13 +10,20 @@ type Step = (card: HTMLElement, next: () => void) => Promise<void> | void;
 
 export const GLOBE_WARNING = `macOS also acts on the Fn (Globe) key, which can open the emoji picker while you dictate. In Keyboard settings, set "Press Globe key to" to "Do Nothing". <button>Open Keyboard settings</button>`;
 type Progress = { kind: "all" | "model" | "whisper"; done: number; total: number };
-type ModelsStatus = { speech_ready: boolean; engine_ready: boolean; engine_offered: boolean; bytes_needed: number; free_bytes: number };
+export type ModelsStatus = {
+  speech_ready: boolean;
+  engine_ready: boolean;
+  engine_offered: boolean;
+  best_offered: boolean;
+  bytes_needed: number;
+  free_bytes: number;
+};
 
-const gb = (n: number) => (n / 1e9).toFixed(1);
+export const gb = (n: number) => (n / 1e9).toFixed(1);
 
 // Bar plus "{done} of {total} GB, about {m} min left", above the step's #st line. The time left
 // uses the average rate over the last 10 s and is left out for the first 3 s.
-function progressBar(card: HTMLElement, kind: Progress["kind"]) {
+export function progressBar(card: HTMLElement, kind: Progress["kind"]) {
   card.querySelectorAll(".progress, #pct").forEach((el) => el.remove());
   const html = `<div class="progress"><div></div></div><p class="status" id="pct"></p>`;
   const st = card.querySelector("#st");

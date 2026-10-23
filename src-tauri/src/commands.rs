@@ -399,6 +399,8 @@ pub struct ModelsStatus {
     pub engine_ready: bool,
     /// False on macOS 11.0 to 13.2: no bundled engine, so setup offers Ollama or a cloud engine.
     pub engine_offered: bool,
+    /// Settings shows Best quality only when true (16 GB of RAM or more and a usable GPU).
+    pub best_offered: bool,
     /// Bytes still to download for both. 0 for the engine on macOS 11.0 to 13.2 (none offered).
     pub bytes_needed: u64,
     pub free_bytes: u64,
@@ -418,6 +420,7 @@ pub async fn models_status(state: State<'_, AppState>) -> CmdResult<ModelsStatus
         speech_ready: models.join(&s.whisper_model).exists(),
         engine_ready: engine == 0,
         engine_offered: spec.is_some(),
+        best_offered: best_offered(machine::ram_gb(), machine::has_gpu(&state.engines_dir)),
         bytes_needed: speech + engine,
         free_bytes: machine::free_bytes(&models),
     })
