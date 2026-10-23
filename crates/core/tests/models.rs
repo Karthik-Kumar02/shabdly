@@ -1,3 +1,4 @@
+use shabdly_core::asr::WHISPER_MODELS;
 use shabdly_core::models::{CATALOG, EngineKind, MIRROR_BASE, Os, DEFAULT_SPEED, best_offered, mirror_url, pick};
 use shabdly_core::settings::Speed;
 
@@ -92,4 +93,18 @@ fn mirror_url_format() {
         mirror_url(spec, f),
         format!("{MIRROR_BASE}/mlx-gemma4-e4b-5bit/model-00001-of-00002.safetensors")
     );
+}
+
+/// Whisper downloads like the engine models (resume, retry, sha256), so its table must be
+/// pinned the same way: a fixed commit, a size and a sha256 per file.
+#[test]
+fn whisper_models_are_pinned() {
+    let hex = |c: char| c.is_ascii_digit() || ('a'..='f').contains(&c);
+    for f in &WHISPER_MODELS {
+        assert!(f.sha256.len() == 64 && f.sha256.chars().all(hex), "{}", f.name);
+        assert!(f.size > 0, "{}", f.name);
+        let rev = f.url.split("/resolve/").nth(1).and_then(|r| r.split('/').next()).unwrap_or("");
+        assert!(rev.len() == 40 && rev.chars().all(hex), "unpinned url {}", f.url);
+        assert!(f.url.ends_with(&format!("/{}", f.name)), "{}", f.url);
+    }
 }

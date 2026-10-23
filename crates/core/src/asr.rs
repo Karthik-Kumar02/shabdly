@@ -1,22 +1,25 @@
 //! Speech recognition with whisper.cpp. Takes 16 kHz mono samples; no OS calls.
+use crate::models::ModelFile;
 use crate::settings::Language;
 use anyhow::Context;
 use std::path::Path;
 use std::sync::Mutex;
 use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters, WhisperState, get_lang_str};
 
-/// (file name, URL, size in bytes).
-pub const WHISPER_MODELS: [(&str, &str, u64); 2] = [
-    (
-        "ggml-large-v3-turbo-q8_0.bin",
-        "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo-q8_0.bin",
-        874_188_075,
-    ),
-    (
-        "ggml-small-q8_0.bin",
-        "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small-q8_0.bin",
-        264_464_607,
-    ),
+/// Speech models, pinned to a commit and downloaded like the engine models (resume, retry, sha256).
+pub const WHISPER_MODELS: [ModelFile; 2] = [
+    ModelFile {
+        name: "ggml-large-v3-turbo-q8_0.bin",
+        size: 874_188_075,
+        sha256: "317eb69c11673c9de1e1f0d459b253999804ec71ac4c23c17ecf5fbe24e259a1",
+        url: "https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-large-v3-turbo-q8_0.bin",
+    },
+    ModelFile {
+        name: "ggml-small-q8_0.bin",
+        size: 264_464_607,
+        sha256: "49c8fb02b65e6049d5fa6c04f81f53b867b5ec9540406812c643f177317f779f",
+        url: "https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-small-q8_0.bin",
+    },
 ];
 
 pub trait Transcriber: Send + Sync {

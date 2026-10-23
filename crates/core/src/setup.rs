@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 const DOWNLOAD_FAILED: &str = "Download failed. Check your internet and try again";
-const BACKOFF: [Duration; 3] = [Duration::from_secs(2), Duration::from_secs(8), Duration::from_secs(30)];
+pub const BACKOFF: [Duration; 3] = [Duration::from_secs(2), Duration::from_secs(8), Duration::from_secs(30)];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -64,39 +64,6 @@ pub async fn pull(base_url: &str, model: &str, progress: impl Fn(u64, u64)) -> a
         }
     }
     Ok(())
-}
-
-/// Download `url` to `dest` via `dest.part`, renamed only when complete, so a
-/// failed or interrupted download never leaves a half model behind.
-pub async fn download(url: &str, dest: &Path, progress: impl Fn(u64, u64)) -> anyhow::Result<()> {
-    let mut part = dest.as_os_str().to_owned();
-    part.push(".part");
-    let part = std::path::PathBuf::from(part);
-    let result = async {
-        let mut resp = reqwest::get(url).await?.error_for_status()?;
-        let total = resp.content_length().unwrap_or(0);
-        if let Some(dir) = dest.parent() {
-            std::fs::create_dir_all(dir)?;
-        }
-        let mut file = std::io::BufWriter::new(std::fs::File::create(&part)?);
-        let mut done = 0u64;
-        while let Some(chunk) = resp.chunk().await? {
-            file.write_all(&chunk)?;
-            done += chunk.len() as u64;
-            progress(done, total.max(done));
-        }
-        file.flush()?;
-        if total > 0 && done != total {
-            bail!("download stopped at {done} of {total} bytes");
-        }
-        std::fs::rename(&part, dest)?;
-        anyhow::Ok(())
-    }
-    .await;
-    if result.is_err() {
-        let _ = std::fs::remove_file(&part);
-    }
-    result
 }
 
 fn part_of(dest: &Path) -> PathBuf {

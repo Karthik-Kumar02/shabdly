@@ -75,7 +75,15 @@ pub fn set_settings(state: State<AppState>, settings: Settings) -> CmdResult<()>
     if let Some(dir) = &state.deps.data_dir {
         store::save(&dir.join("settings.json"), &settings).map_err(msg)?;
     }
+    let (was, now) = (bundled(&state.deps.settings.lock().unwrap()), bundled(&settings));
     *state.deps.settings.lock().unwrap() = settings;
+    // The built-in helper holds 3 to 4 GB: free it when the user leaves it, start it on return.
+    let engine = state.local.lock().unwrap().clone();
+    if was && !now {
+        engine.stop();
+    } else if now && !was {
+        tauri::async_runtime::spawn(async move { engine.ensure().await });
+    }
     Ok(())
 }
 
@@ -271,13 +279,16 @@ pub fn whisper_ready(state: State<AppState>, name: String) -> CmdResult<bool> {
 
 #[tauri::command]
 pub async fn download_whisper(app: AppHandle, state: State<'_, AppState>, name: String) -> CmdResult<()> {
-    let url = WHISPER_MODELS.iter().find(|(n, ..)| *n == name).ok_or("Unknown speech model")?.1;
+    let f = WHISPER_MODELS.iter().find(|f| f.name == name).ok_or("Unknown speech model")?;
     let dest = model_path(&state, &name)?;
-    setup::download(url, &dest, |done, total| {
+    setup::download_file(&[f.url.to_string()], &dest, f.size, f.sha256, &setup::BACKOFF, |done, total| {
         let _ = app.emit("setup-progress", serde_json::json!({ "kind": "whisper", "done": done, "total": total }));
     })
     .await
-    .map_err(|e| format!("Download failed: {e:#}"))
+    .map_err(|e| {
+        eprintln!("speech model download: {e:#}");
+        msg(e)
+    })
 }
 
 const GB: u64 = 1_000_000_000;
@@ -312,7 +323,7 @@ fn speech_needs(models: &Path, name: &str) -> u64 {
     if models.join(name).exists() {
         return 0;
     }
-    WHISPER_MODELS.iter().find(|m| m.0 == name).map_or(0, |m| m.2)
+    WHISPER_MODELS.iter().find(|f| f.name == name).map_or(0, |f| f.size)
 }
 
 /// Bytes `spec` still needs (0 when ready). The first check may hash the files (seconds).
@@ -353,8 +364,10 @@ async fn download_missing(
         msg(e)
     };
     if let Some(name) = whisper.filter(|_| speech > 0) {
-        let url = WHISPER_MODELS.iter().find(|m| m.0 == name).ok_or("Unknown speech model")?.1;
-        setup::download(url, &models.join(name), |done, _| emit(done)).await.map_err(failed)?;
+        let f = WHISPER_MODELS.iter().find(|f| f.name == name).ok_or("Unknown speech model")?;
+        setup::download_file(&[f.url.to_string()], &models.join(name), f.size, f.sha256, &setup::BACKOFF, |done, _| emit(done))
+            .await
+            .map_err(failed)?;
     }
     if let Some(spec) = spec.filter(|_| engine > 0) {
         setup::download_model(spec, models, |done, _| emit(speech + done)).await.map_err(failed)?;

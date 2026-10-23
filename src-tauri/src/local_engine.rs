@@ -285,7 +285,12 @@ impl LocalEngine {
     }
 
     pub fn stop(&self) {
-        let active = self.state.lock().unwrap_or_else(|e| e.into_inner()).active.take();
+        let active = {
+            let mut s = self.state.lock().unwrap_or_else(|e| e.into_inner());
+            // Nothing runs now; the next ensure() starts it again.
+            s.status = EngineStatus::Starting;
+            s.active.take()
+        };
         if let Some(mut c) = active.and_then(|r| r.child) {
             kill(&mut c);
         }
@@ -595,6 +600,19 @@ mod tests {
         assert_eq!(engine.status(), EngineStatus::Builtin);
         assert_eq!(engine.clean("s", "t").await.unwrap(), "from a");
         assert_eq!(b_starts.load(Ordering::SeqCst), 0);
+    }
+
+    #[tokio::test]
+    async fn stop_then_clean_starts_again() {
+        let (a, a_starts) = fake("a", |_| running(Reply::Text("from a")));
+        let engine = LocalEngine::new(vec![a]);
+        engine.ensure().await;
+        engine.stop();
+        // Nothing runs after stop, so the status must not still say Builtin.
+        assert_eq!(engine.status(), EngineStatus::Starting);
+        engine.ensure().await;
+        assert_eq!(engine.clean("s", "t").await.unwrap(), "from a");
+        assert_eq!(a_starts.load(Ordering::SeqCst), 2);
     }
 
     #[tokio::test]
