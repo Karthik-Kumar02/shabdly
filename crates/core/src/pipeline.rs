@@ -2,7 +2,7 @@
 //! Any provider failure falls back to the raw transcript (spec s6).
 use crate::dictionary::Dictionary;
 use crate::prompt::system_prompt;
-use crate::providers::{CleanupProvider, OllamaProvider};
+use crate::providers::{CleanupProvider, OllamaProvider, Skip};
 use crate::settings::Language;
 use crate::swaps::{apply_heard_swaps, apply_swaps};
 use std::time::Duration;
@@ -18,7 +18,8 @@ pub fn timeout_for(base: Duration, text: &str) -> Duration {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Cleaned {
     pub text: String,
-    pub cleanup_skipped: bool,
+    /// Why the model's output was not used; None when it was.
+    pub skipped: Option<Skip>,
     pub used_words: Vec<String>,
 }
 
@@ -29,18 +30,19 @@ pub async fn clean(raw: &str, dict: &Dictionary, lang: Language, provider: &dyn 
     let (pre, mut used_words) = apply_heard_swaps(raw.trim(), dict);
     let system = system_prompt(lang, &dict.hints(200));
     let limit = timeout_for(provider.base_timeout(), &pre);
-    let model = match tokio::time::timeout(limit, provider.clean(&system, &pre)).await {
-        Ok(Ok(s)) if !s.trim().is_empty() => Some(s),
-        _ => None,
+    let (model, skipped) = match tokio::time::timeout(limit, provider.clean(&system, &pre)).await {
+        Ok(Ok(s)) if !s.trim().is_empty() => (Some(s), None),
+        Ok(Ok(_)) => (None, Some(Skip::EngineError)),
+        Ok(Err(e)) => (None, Some(e.downcast_ref::<Skip>().copied().unwrap_or(Skip::EngineError))),
+        Err(_) => (None, Some(Skip::TooSlow)),
     };
-    let cleanup_skipped = model.is_none();
     let (text, post_used) = apply_swaps(model.as_deref().unwrap_or(&pre), dict);
     for w in post_used {
         if !used_words.contains(&w) {
             used_words.push(w);
         }
     }
-    Cleaned { text: text.trim().to_string(), cleanup_skipped, used_words }
+    Cleaned { text: text.trim().to_string(), skipped, used_words }
 }
 
 /// Load the local model so the first dictation is fast.

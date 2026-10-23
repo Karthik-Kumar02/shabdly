@@ -12,7 +12,7 @@ use shabdly_core::dictionary::Dictionary;
 use shabdly_core::history::{History, HistoryItem};
 use shabdly_core::learning::{LearnEvent, learn};
 use shabdly_core::pipeline::clean;
-use shabdly_core::providers::CleanupProvider;
+use shabdly_core::providers::{CleanupProvider, Skip};
 use shabdly_core::settings::Settings;
 use shabdly_core::store;
 use std::path::PathBuf;
@@ -45,7 +45,7 @@ pub struct Deps {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Outcome {
-    Inserted { text: String, cleanup_skipped: bool, at_ms: i64, element_id: u64 },
+    Inserted { text: String, skipped: Option<Skip>, at_ms: i64, element_id: u64 },
     Copied { text: String },
     Blocked { text: String },
     Empty,
@@ -125,7 +125,7 @@ pub async fn process(deps: &Deps, samples_16k: Vec<f32>) -> Outcome {
     // Stage times only, never the transcript.
     eprintln!(
         "timing: audio {audio_ms} ms, asr {asr_ms} ms, cleanup {clean_ms} ms{}, insert {} ms, words {}",
-        if cleaned.cleanup_skipped { " (skipped)" } else { "" },
+        if cleaned.skipped.is_some() { " (skipped)" } else { "" },
         t.elapsed().as_millis(),
         raw.split_whitespace().count()
     );
@@ -144,7 +144,7 @@ pub async fn process(deps: &Deps, samples_16k: Vec<f32>) -> Outcome {
     let text = cleaned.text;
     match (pasted, field) {
         (PasteOutcome::Pasted, Some(f)) => {
-            Outcome::Inserted { text, cleanup_skipped: cleaned.cleanup_skipped, at_ms, element_id: f.element_id }
+            Outcome::Inserted { text, skipped: cleaned.skipped, at_ms, element_id: f.element_id }
         }
         (PasteOutcome::Blocked, _) => Outcome::Blocked { text },
         _ => Outcome::Copied { text },
@@ -299,12 +299,13 @@ fn run(
                     eprintln!("timing: release to done {} ms", released.elapsed().as_millis());
                     warm.store(true, Ordering::SeqCst);
                     let (at_ms, element_id, text) = match outcome {
-                        Outcome::Inserted { text, cleanup_skipped, at_ms, element_id } => {
-                            if cleanup_skipped {
-                                let note = if deps.provider.paused() { "Cleanup paused, typing raw text" } else { "Cleanup skipped" };
-                                overlay(&emit, "error", Some(note));
-                            } else {
-                                overlay(&emit, "hidden", None);
+                        Outcome::Inserted { text, skipped, at_ms, element_id } => {
+                            match skipped {
+                                Some(_) if deps.provider.paused() => {
+                                    overlay(&emit, "error", Some("Cleanup paused, typing raw text"))
+                                }
+                                Some(why) => overlay(&emit, "error", Some(why.message())),
+                                None => overlay(&emit, "hidden", None),
                             }
                             (at_ms, element_id, text)
                         }
@@ -340,7 +341,7 @@ pub(crate) mod tests {
     use crate::local_engine::{Candidate, LocalEngine, Running};
     use crate::platform::{ClipboardSnapshot, FieldText};
     use async_trait::async_trait;
-    use shabdly_core::providers::OllamaProvider;
+    use shabdly_core::providers::{OllamaProvider, Skip};
     use shabdly_core::settings::{Language, LocalEngineKind};
     use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
     use std::time::Instant;
@@ -454,7 +455,7 @@ pub(crate) mod tests {
         let d = deps(p.clone(), "tell kartik", Arc::new(Down));
         d.dict.lock().unwrap().upsert_manual("Karthik", vec!["kartik".into()], None, 1);
         let o = process(&d, speech()).await;
-        assert!(matches!(&o, Outcome::Inserted { text, cleanup_skipped: true, .. } if text == "tell Karthik"));
+        assert!(matches!(&o, Outcome::Inserted { text, skipped: Some(Skip::EngineError), .. } if text == "tell Karthik"));
     }
 
     /// The bundled engine's only step: answers "bundled", or fails to start.
@@ -515,7 +516,7 @@ pub(crate) mod tests {
     async fn switch_provider_reports_paused_when_no_engine_starts() {
         let (sp, _) = switch(LocalEngineKind::Bundled, false);
         let d = deps(Arc::new(FakePlatform::new(vec![field("", 1)])), "hello there", sp.clone());
-        assert!(matches!(process(&d, speech()).await, Outcome::Inserted { cleanup_skipped: true, .. }));
+        assert!(matches!(process(&d, speech()).await, Outcome::Inserted { skipped: Some(_), .. }));
         assert!(sp.paused());
     }
 
