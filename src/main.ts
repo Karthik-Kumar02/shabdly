@@ -551,6 +551,9 @@ window.addEventListener("focus", () => {
   if (panel && current !== "Settings") flip(panel, () => renderers[current](panel));
 });
 
-invoke<"first_run" | "speech_model" | null>("needs_setup").then((setup) =>
-  setup ? startOnboarding(app, renderApp, setup === "speech_model" ? "speech_model" : undefined) : renderApp(),
-);
+invoke<"first_run" | "speech_model" | null>("needs_setup")
+  .then((setup) =>
+    setup ? startOnboarding(app, renderApp, setup === "speech_model" ? "speech_model" : undefined) : renderApp(),
+  )
+  // Say why instead of leaving an empty window.
+  .catch((e) => (app.innerHTML = `<p class="startup-error">Shabdly could not start: ${esc(String(e))}</p>`));

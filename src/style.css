@@ -55,6 +55,9 @@
 [hidden] { display: none !important; }
 /* The window is transparent so the native sidebar material shows through. */
 html, body { margin: 0; height: 100%; background: transparent; }
+/* No material elsewhere: a solid page, so a blank one is never see-through. */
+:root:not(.mac) body:not(.overlay-body) { background: var(--content); }
+.startup-error { margin: 48px 24px; }
 #app { display: flex; height: 100vh; }
 
 /* Sidebar. Its top 52 px clears the traffic lights. */
