@@ -77,13 +77,21 @@ pub fn free_bytes(dir: &Path) -> u64 {
     fs4::available_space(dir).unwrap_or(0)
 }
 
-/// Mac: always (Metal). Windows: the bundled llama-server lists a Vulkan device.
+/// Mac: always (Metal). Windows: the bundled llama-server lists a Vulkan device. Probed once:
+/// starting llama-server takes a moment and the answer does not change while Shabdly runs.
 pub fn has_gpu(engines_dir: &Path) -> bool {
     if cfg!(target_os = "macos") {
         return true;
     }
-    run(&engines_dir.join("win/llama/llama-server.exe"), &["--list-devices"])
-        .is_some_and(|out| out.contains("Vulkan"))
+    static GPU: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *GPU.get_or_init(|| {
+        run(&engines_dir.join("win/llama/llama-server.exe"), &["--list-devices"]).is_some_and(|out| lists_vulkan_device(&out))
+    })
+}
+
+/// A "Vulkan0: <name>" device line, not just the word: the backend's own log says "Vulkan" too.
+fn lists_vulkan_device(out: &str) -> bool {
+    out.lines().any(|l| l.trim_start().starts_with("Vulkan0:"))
 }
 
 /// The saved speed (or the default), dropped to Fast when this machine no longer qualifies for
@@ -99,6 +107,12 @@ pub fn chosen_spec(s: &Settings, engines_dir: &Path) -> Option<&'static ModelSpe
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn only_a_listed_vulkan_device_counts() {
+        assert!(lists_vulkan_device("Available devices:\n  Vulkan0: AMD Radeon(TM) Graphics (8192 MiB, 7900 MiB free)\n"));
+        assert!(!lists_vulkan_device("load_backend: loaded Vulkan backend from ggml-vulkan.dll\nggml_vulkan: No devices found.\nAvailable devices:\n"));
+    }
 
     #[test]
     fn gb_rounds_to_nearest() {
