@@ -46,7 +46,7 @@ Everything runs on your own computer by default. No account, no subscription, no
 - English words stay English. Shabdly never translates.
 
 **Private by default**
-- Speech recognition (Whisper) and cleanup (a local model through Ollama) both run on your computer.
+- Speech recognition (Whisper) and cleanup (a small built-in model) both run on your computer. Nothing else to install.
 - Prefer the cloud? Switch to Gemini (free tier or paid) or Claude Haiku in Settings.
 - If cleanup is slow or unavailable, Shabdly still types your words and tells you "Cleanup skipped". Nothing is lost.
 
@@ -70,7 +70,9 @@ Everything runs on your own computer by default. No account, no subscription, no
 
 3. Open the `.dmg` and drag **Shabdly** into **Applications**.
 4. Open Shabdly. macOS does not ask for these permissions, so turn them on yourself: in **System Settings, Privacy & Security**, switch Shabdly on under both **Device Control** and **Data Access**. Without them it cannot paste your words. (On older macOS versions, the switch is under **Accessibility**.)
-5. Install [Ollama](https://ollama.com/download) for private, free cleanup. (Optional if you choose a cloud engine instead.)
+5. Follow the setup in Shabdly. One click downloads the speech and cleanup models (about 4 GB, one time).
+
+On macOS 13.2 or earlier the built-in cleanup engine cannot run: install [Ollama](https://ollama.com/download), or choose a cloud engine.
 
 Updating from 0.1.3 or earlier: macOS forgets these permissions once. If pasting stops, remove Shabdly from **Device Control** and **Data Access** with the minus button, then add it again. Later updates keep them.
 
@@ -80,7 +82,7 @@ On an Intel Mac, [build from source](#build-from-source).
 
 1. Download the `-setup.exe` from the [latest release](https://github.com/Karthik-Kumar02/shabdly/releases/latest) and run it.
 2. If Windows SmartScreen appears, click **More info**, then **Run anyway**. (Shabdly is not yet signed with a paid certificate.)
-3. Install [Ollama](https://ollama.com/download) for private, free cleanup. (Optional if you choose a cloud engine instead.)
+3. Open Shabdly and follow the setup. One click downloads the speech and cleanup models (about 4 GB, one time).
 
 Windows support is new and has been tested by the automated build, not yet by hand on many machines. Please [report anything odd](https://github.com/Karthik-Kumar02/shabdly/issues).
 
@@ -91,9 +93,8 @@ Shabdly walks you through setup in a few minutes:
 1. **Welcome.** What Shabdly does, and that it stays on your computer.
 2. **Microphone.** Allow access. Shabdly listens only while you hold your key.
 3. **Typing into other apps** (Mac only). Turn Shabdly on under **Accessibility** (so it can type) and **Input Monitoring** (so it can see your key).
-4. **Cleanup engine.** Shabdly finds Ollama and downloads its model, `gemma4:e4b` (about 10 GB, one time). No Ollama? Pick Gemini or Claude Haiku and paste your API key.
-5. **Speech model.** A one-time download of about 0.9 GB.
-6. **Try it.** Pick your key and language, then hold the key and say hello.
+4. **Download.** One click downloads the speech model and the built-in cleanup model (about 4 GB, one time). The download resumes if your connection drops. Models you already have in your Hugging Face cache are reused. Prefer Ollama, Gemini, or Claude Haiku? Choose **Advanced**.
+5. **Try it.** Pick your key and language, then hold the key and say hello.
 
 ## Using Shabdly
 
@@ -111,7 +112,8 @@ Recordings shorter than 0.3 seconds are ignored, and recording stops on its own 
 
 | Engine | Cost | Privacy | Notes |
 | --- | --- | --- | --- |
-| Local (Ollama) | Free | Never leaves your computer | Default. Needs about 10 GB of disk and a reasonably modern computer. |
+| Local (built in) | Free | Never leaves your computer | Default. About 3 GB of disk. **Fastest** on every computer; **Best** (more accurate, a little slower) in Settings with 16 GB of memory or more. Needs macOS 13.3 or later, or Windows 10 or 11. |
+| Ollama (advanced) | Free | Never leaves your computer | Uses Ollama's `gemma4:e4b` (about 10 GB). For older Macs, or if you already use Ollama. |
 | Gemini free tier | Free | Transcript and dictionary words sent to Google | Can be slow or skip cleanup when busy. |
 | Gemini paid | Pay per use | Same as above | Faster and more reliable. |
 | Claude Haiku | Pay per use | Transcript and dictionary words sent to Anthropic | Fast and accurate. |
@@ -139,7 +141,7 @@ On Mac, turn Shabdly on under **System Settings, Privacy & Security, Accessibili
 Allow the microphone under **System Settings, Privacy & Security, Microphone** (Mac) or **Settings, Privacy, Microphone** (Windows).
 
 **It says "Cleanup skipped".**
-The cleanup engine did not answer in time, so Shabdly typed your words without cleanup. Check that Ollama is running, or that your cloud API key is saved in Settings.
+The cleanup engine did not answer in time, so Shabdly typed your words without cleanup. Open Settings: the line under the cleanup engine says whether the built-in engine is running, with a **Retry** button. With Ollama, check that it is running; with a cloud engine, check that your API key is saved.
 
 **It did not learn my correction.**
 Shabdly learns when you fix a word in the same text box right after dictating, then press Return, click into another box, or wait a minute. Changes of more than 4 words are skipped, common words need the same fix twice, and a few apps (like Terminal) do not let Shabdly read their text.
@@ -152,12 +154,13 @@ You need [Rust](https://rustup.rs), [Node.js](https://nodejs.org) 20 or newer, a
 git clone https://github.com/Karthik-Kumar02/shabdly.git
 cd shabdly
 npm install
+scripts/fetch-llama.sh   # Mac: builds the MLX helper, fetches llama-server (Windows: scripts/fetch-llama.ps1)
 npm run tauri build
 ```
 
 The finished app is in `target/release/bundle/`. For development with live reload, run `npm run tauri dev`.
 
-Run the tests with `cargo test --workspace`. With Ollama running, `cargo test -p shabdly-core --test spike_cases -- --ignored` checks the cleanup engine against real English, Hindi, and Hinglish samples.
+Run the tests with `cargo test --workspace`. `cargo test --release -p shabdly-core --test spike_cases -- --ignored --nocapture` checks a cleanup engine against real English, Hindi, and Hinglish samples (Ollama by default; see the file for the built-in engines).
 
 ## How it is built
 
