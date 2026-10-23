@@ -210,6 +210,8 @@ struct State {
     active: Option<Running>,
     status: EngineStatus,
     last_exit: Option<Instant>,
+    /// Bumped by stop(): a start already under way then kills its helper instead of keeping it.
+    stops: u64,
 }
 
 pub struct LocalEngine {
@@ -253,7 +255,7 @@ impl LocalEngine {
             me: me.clone(),
             candidates,
             walk: tokio::sync::Mutex::new(()),
-            state: Mutex::new(State { index: 0, active: None, status: EngineStatus::Starting, last_exit: None }),
+            state: Mutex::new(State { index: 0, active: None, status: EngineStatus::Starting, last_exit: None, stops: 0 }),
             timeouts: AtomicU32::new(0),
             watching: AtomicBool::new(false),
         })
@@ -289,6 +291,7 @@ impl LocalEngine {
             let mut s = self.state.lock().unwrap_or_else(|e| e.into_inner());
             // Nothing runs now; the next ensure() starts it again.
             s.status = EngineStatus::Starting;
+            s.stops += 1;
             s.active.take()
         };
         if let Some(mut c) = active.and_then(|r| r.child) {
@@ -305,10 +308,10 @@ impl LocalEngine {
 
     /// Call with `walk` held.
     async fn walk_from(&self, from: usize, reason: Option<String>) {
-        let old = {
+        let (old, stops) = {
             let mut s = self.state.lock().unwrap();
             s.status = EngineStatus::Starting;
-            s.active.take()
+            (s.active.take(), s.stops)
         };
         if let Some(mut c) = old.and_then(|r| r.child) {
             kill(&mut c);
@@ -324,6 +327,13 @@ impl LocalEngine {
                     };
                     eprintln!("cleanup engine: {} running ({status:?})", c.name());
                     let mut s = self.state.lock().unwrap();
+                    if s.stops != stops {
+                        drop(s);
+                        if let Some(mut c) = running.child {
+                            kill(&mut c);
+                        }
+                        return;
+                    }
                     (s.index, s.active, s.status) = (i, Some(running), status);
                     drop(s);
                     self.timeouts.store(0, Ordering::SeqCst);
@@ -337,6 +347,9 @@ impl LocalEngine {
             }
         }
         let mut s = self.state.lock().unwrap();
+        if s.stops != stops {
+            return;
+        }
         s.index = self.candidates.len();
         s.status = EngineStatus::Paused { reason: reason.unwrap_or_else(|| "no engine".into()) };
     }
@@ -399,6 +412,12 @@ impl LocalEngine {
             Some(r) => Ok((r.provider.clone(), self.candidates[s.index].punctuate())),
             None => bail!("cleanup paused"),
         }
+    }
+}
+
+impl Drop for LocalEngine {
+    fn drop(&mut self) {
+        self.stop();
     }
 }
 
@@ -753,6 +772,75 @@ mod tests {
         println!("cleaned: {out}");
         assert!(out.ends_with(['.', '?', '!']));
         engine.stop();
+    }
+
+    #[cfg(unix)]
+    fn sleeper() -> Child {
+        Command::new("sleep").arg("30").spawn().unwrap()
+    }
+
+    #[cfg(unix)]
+    fn alive(pid: u32) -> bool {
+        Command::new("kill").args(["-0", &pid.to_string()]).stderr(Stdio::null()).status().unwrap().success()
+    }
+
+    /// A Speed swap drops the old engine: its helper must not outlive it.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn dropping_the_engine_kills_its_helper() {
+        let pid = Arc::new(AtomicU32::new(0));
+        let p = pid.clone();
+        let (a, _) = fake("a", move |_| {
+            let c = sleeper();
+            p.store(c.id(), Ordering::SeqCst);
+            Ok(Running { provider: Arc::new(FakeProvider(Reply::Text("from a"))), child: Some(c) })
+        });
+        let engine = LocalEngine::new(vec![a]);
+        engine.ensure().await;
+        let pid = pid.load(Ordering::SeqCst);
+        assert!(alive(pid));
+        drop(engine);
+        assert!(!alive(pid));
+    }
+
+    /// Starts only when told to, as a slow model load does.
+    #[cfg(unix)]
+    struct Slow {
+        entered: Arc<tokio::sync::Notify>,
+        release: Arc<tokio::sync::Notify>,
+        pid: Arc<AtomicU32>,
+    }
+
+    #[cfg(unix)]
+    #[async_trait]
+    impl Candidate for Slow {
+        fn name(&self) -> &'static str {
+            "slow"
+        }
+        async fn start(&self) -> anyhow::Result<Running> {
+            self.entered.notify_one();
+            self.release.notified().await;
+            let c = sleeper();
+            self.pid.store(c.id(), Ordering::SeqCst);
+            Ok(Running { provider: Arc::new(FakeProvider(Reply::Text("slow"))), child: Some(c) })
+        }
+    }
+
+    /// stop() during a start (leaving the built-in engine, a swap): the start must not leave a helper.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn stop_during_start_leaves_no_helper() {
+        let (entered, release, pid) = (Arc::default(), Arc::<tokio::sync::Notify>::default(), Arc::new(AtomicU32::new(0)));
+        let slow = Slow { entered: Arc::clone(&entered), release: release.clone(), pid: pid.clone() };
+        let engine = LocalEngine::new(vec![Box::new(slow)]);
+        let e = engine.clone();
+        let walk = tokio::spawn(async move { e.ensure().await });
+        entered.notified().await;
+        engine.stop();
+        release.notify_one();
+        walk.await.unwrap();
+        assert_eq!(engine.status(), EngineStatus::Starting);
+        assert!(!alive(pid.load(Ordering::SeqCst)));
     }
 
     #[test]
