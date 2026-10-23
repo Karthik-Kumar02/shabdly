@@ -16,7 +16,7 @@ use std::time::Duration;
 use tauri::Emitter;
 use shabdly_core::dictionary::Entry;
 use shabdly_core::history::HistoryItem;
-use shabdly_core::learning::{LearnEvent, learn, undo};
+use shabdly_core::learning::{LearnEvent, learn};
 use shabdly_core::settings::Settings;
 use shabdly_core::store;
 use std::sync::atomic::{AtomicBool, AtomicI64};
@@ -154,8 +154,12 @@ pub fn fix_word_cmd(state: State<AppState>, at_ms: i64, wrong: String, right: St
 
 #[tauri::command]
 pub fn undo_learn(state: State<AppState>, event: LearnEvent) {
-    undo(&mut state.deps.dict.lock().unwrap(), &event);
-    state.deps.save_dict();
+    state.deps.undo_learned(&event);
+}
+
+#[tauri::command]
+pub fn recent_learned(state: State<AppState>) -> Vec<LearnEvent> {
+    state.deps.recent_learned()
 }
 
 fn key_entry(provider: &str) -> CmdResult<keyring::Entry> {
@@ -554,6 +558,19 @@ pub fn open_settings_pane(pane: String) -> CmdResult<()> {
     Ok(())
 }
 
+/// Passes hotkey events on to dictation, stamping `seen` for the dictation key only:
+/// Enter and Esc reach Shabdly even when the hotkey itself does not.
+pub fn forward_hotkeys(raw: std::sync::mpsc::Receiver<HotkeyEvent>, ctl: Sender<HotkeyEvent>, seen: &AtomicI64) {
+    for ev in raw {
+        if matches!(ev, HotkeyEvent::Down | HotkeyEvent::Up) {
+            seen.store(now_ms(), std::sync::atomic::Ordering::SeqCst);
+        }
+        if ctl.send(ev).is_err() {
+            return;
+        }
+    }
+}
+
 /// Wait up to `wait` for a hotkey event that arrives after the call starts.
 pub async fn wait_for_hotkey(last_ms: &AtomicI64, wait: Duration) -> bool {
     let start = now_ms();
@@ -660,5 +677,24 @@ mod tests {
             l2.store(now_ms(), std::sync::atomic::Ordering::SeqCst);
         });
         assert!(wait_for_hotkey(&last, std::time::Duration::from_millis(500)).await);
+    }
+
+    #[test]
+    fn only_the_dictation_key_counts_as_seen() {
+        let (raw_tx, raw_rx) = std::sync::mpsc::channel();
+        let (ctl_tx, ctl_rx) = std::sync::mpsc::channel();
+        let seen = Arc::new(AtomicI64::new(0));
+        let s2 = seen.clone();
+        let t = std::thread::spawn(move || forward_hotkeys(raw_rx, ctl_tx, &s2));
+        for ev in [HotkeyEvent::Enter, HotkeyEvent::Esc] {
+            raw_tx.send(ev).unwrap();
+            assert_eq!(ctl_rx.recv().unwrap(), ev, "still reaches dictation");
+        }
+        assert_eq!(seen.load(std::sync::atomic::Ordering::SeqCst), 0, "Enter and Esc do not count");
+        raw_tx.send(HotkeyEvent::Up).unwrap();
+        assert_eq!(ctl_rx.recv().unwrap(), HotkeyEvent::Up);
+        assert!(seen.load(std::sync::atomic::Ordering::SeqCst) > 0);
+        drop(raw_tx);
+        t.join().unwrap();
     }
 }

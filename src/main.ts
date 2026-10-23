@@ -333,6 +333,7 @@ async function renderSettings(root: HTMLElement) {
 
 async function renderDictionary(root: HTMLElement) {
   const entries = await invoke<Entry[]>("list_dictionary");
+  const recent = await invoke<LearnEvent[]>("recent_learned");
   entries.sort((a, b) => Number(b.starred) - Number(a.starred) || a.word.localeCompare(b.word));
   const row = (e: Entry) => {
     const heard = e.heard_as.length ? `heard as ${e.heard_as.map(esc).join(", ")}` : "";
@@ -353,6 +354,15 @@ async function renderDictionary(root: HTMLElement) {
       <button>Add</button>
     </form>
     <p id="status" class="status"></p>
+    ${
+      recent.length
+        ? `<h2 class="grp">Recently learned</h2>
+           <ul class="card list" id="recent">${recent
+             .map((e, i) => `<li data-i="${i}"><div class="grow"><strong>${esc(e.word)}</strong> <span class="muted">heard as ${esc(e.heard)}</span></div><button class="undo">Undo</button></li>`)
+             .join("")}</ul>
+           <h2 class="grp">All words</h2>`
+        : ""
+    }
     <ul class="card list">${entries.map(row).join("") || `<li class="muted">No words yet. Correct a word after dictating, or add one here.</li>`}</ul>
     <div class="row">
       <label class="filebtn">Import JSON<input id="import" type="file" accept="application/json,.json" hidden></label>
@@ -372,6 +382,13 @@ async function renderDictionary(root: HTMLElement) {
     } catch (e) {
       flash(status, String(e), true);
     }
+  });
+  root.querySelectorAll<HTMLLIElement>("#recent li").forEach((li) => {
+    li.querySelector(".undo")!.addEventListener("click", async () => {
+      await collapse(li);
+      await invoke("undo_learn", { event: recent[Number(li.dataset.i)] });
+      flip(root, () => renderDictionary(root));
+    });
   });
   root.querySelectorAll<HTMLLIElement>("li[data-word]").forEach((li) => {
     const word = li.dataset.word!;

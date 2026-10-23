@@ -15,6 +15,36 @@ pub trait CleanupProvider: Send + Sync {
     }
 }
 
+/// Why cleanup was skipped, for the overlay. A fixed message: never a key or raw error text.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Skip {
+    NoGeminiKey,
+    NoClaudeKey,
+    OllamaDown,
+    TooSlow,
+    EngineError,
+}
+
+impl Skip {
+    pub fn message(self) -> &'static str {
+        match self {
+            Skip::NoGeminiKey => "Cleanup skipped: no Gemini key",
+            Skip::NoClaudeKey => "Cleanup skipped: no Claude key",
+            Skip::OllamaDown => "Cleanup skipped: Ollama not running",
+            Skip::TooSlow => "Cleanup skipped: took too long",
+            Skip::EngineError => "Cleanup skipped: engine error",
+        }
+    }
+}
+
+impl std::fmt::Display for Skip {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.write_str(self.message())
+    }
+}
+
+impl std::error::Error for Skip {}
+
 fn client() -> reqwest::Client {
     static C: std::sync::OnceLock<reqwest::Client> = std::sync::OnceLock::new();
     C.get_or_init(reqwest::Client::new).clone()
@@ -71,7 +101,10 @@ impl CleanupProvider for OllamaProvider {
         Duration::from_secs(8)
     }
     async fn clean(&self, system: &str, text: &str) -> anyhow::Result<String> {
-        parse_ollama(&self.chat(system, text, -1).await?)
+        let reply = self.chat(system, text, -1).await.map_err(|e| {
+            if e.downcast_ref::<reqwest::Error>().is_some_and(reqwest::Error::is_connect) { Skip::OllamaDown.into() } else { e }
+        })?;
+        parse_ollama(&reply)
     }
 }
 

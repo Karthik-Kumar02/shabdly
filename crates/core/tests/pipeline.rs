@@ -6,7 +6,7 @@ use shabdly_core::dictionary::Dictionary;
 use shabdly_core::pipeline::{clean, finish_sentence, finish_sentence_from, timeout_for};
 use shabdly_core::prompt::system_prompt;
 use shabdly_core::providers::{
-    CleanupProvider, ollama_body, openai_body, parse_anthropic, parse_gemini, parse_ollama, parse_openai,
+    CleanupProvider, OllamaProvider, Skip, ollama_body, openai_body, parse_anthropic, parse_gemini, parse_ollama, parse_openai,
 };
 use shabdly_core::settings::Language;
 use std::time::Duration;
@@ -14,6 +14,7 @@ use std::time::Duration;
 enum Fake {
     Echo(&'static str),
     Fail,
+    NoKey,
     Slow,
     /// Transliterates like the real model does, losing the Devanagari form.
     Translit,
@@ -29,6 +30,7 @@ impl CleanupProvider for Fake {
             Fake::Echo(s) => Ok(s.to_string()),
             Fake::Translit => Ok(_text.replace("रिया", "Rhea")),
             Fake::Fail => anyhow::bail!("connection refused"),
+            Fake::NoKey => Err(Skip::NoGeminiKey.into()),
             Fake::Slow => {
                 tokio::time::sleep(Duration::from_millis(500)).await;
                 Ok("too late".into())
@@ -78,29 +80,53 @@ fn parse_anthropic_refusal_is_error() {
 async fn pipeline_applies_swaps_after_provider() {
     let c = clean("ask kartik", &dict(), Language::Auto, &Fake::Echo("ask Kartik")).await;
     assert_eq!(c.text, "ask Karthik");
-    assert!(!c.cleanup_skipped);
+    assert_eq!(c.skipped, None);
     assert_eq!(c.used_words, vec!["Karthik"]);
+    assert_eq!(c.skipped, None);
 }
 
 #[tokio::test]
 async fn pipeline_falls_back_on_error() {
     let c = clean(" ask kartik ", &dict(), Language::Auto, &Fake::Fail).await;
     assert_eq!(c.text, "ask Karthik");
-    assert!(c.cleanup_skipped);
+    assert_eq!(c.skipped, Some(Skip::EngineError));
 }
 
 #[tokio::test]
 async fn pipeline_falls_back_on_timeout() {
     let c = clean("tory branch", &dict(), Language::Auto, &Fake::Slow).await;
     assert_eq!(c.text, "Tauri branch");
-    assert!(c.cleanup_skipped);
+    assert_eq!(c.skipped, Some(Skip::TooSlow));
 }
 
 #[tokio::test]
 async fn pipeline_falls_back_on_empty_output() {
     let c = clean("hello", &Dictionary::default(), Language::Auto, &Fake::Echo("  ")).await;
     assert_eq!(c.text, "hello");
-    assert!(c.cleanup_skipped);
+    assert_eq!(c.skipped, Some(Skip::EngineError));
+}
+
+#[tokio::test]
+async fn pipeline_keeps_the_providers_skip_reason() {
+    let c = clean("hello", &Dictionary::default(), Language::Auto, &Fake::NoKey).await;
+    assert_eq!(c.skipped, Some(Skip::NoGeminiKey));
+}
+
+#[tokio::test]
+async fn ollama_not_running_is_named() {
+    // Nothing listens on the discard port, so the connection is refused.
+    let p = OllamaProvider { base_url: "http://127.0.0.1:9".into(), ..Default::default() };
+    let c = clean("hello", &Dictionary::default(), Language::Auto, &p).await;
+    assert_eq!(c.skipped, Some(Skip::OllamaDown));
+}
+
+#[test]
+fn skip_messages_name_the_reason_only() {
+    assert_eq!(Skip::NoGeminiKey.message(), "Cleanup skipped: no Gemini key");
+    assert_eq!(Skip::NoClaudeKey.message(), "Cleanup skipped: no Claude key");
+    assert_eq!(Skip::OllamaDown.message(), "Cleanup skipped: Ollama not running");
+    assert_eq!(Skip::TooSlow.message(), "Cleanup skipped: took too long");
+    assert_eq!(Skip::EngineError.message(), "Cleanup skipped: engine error");
 }
 
 #[test]
@@ -115,7 +141,7 @@ fn timeout_scales_with_length() {
 async fn pipeline_swaps_before_provider_too() {
     let c = clean("रिया वाला setup", &dict(), Language::Auto, &Fake::Translit).await;
     assert_eq!(c.text, "REA वाला setup");
-    assert!(!c.cleanup_skipped);
+    assert_eq!(c.skipped, None);
 }
 
 /// Records what the provider was sent, and echoes it back.

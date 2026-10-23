@@ -10,9 +10,9 @@ use shabdly_core::asr::Transcriber;
 use shabdly_core::audio::{rms, to_16k_mono};
 use shabdly_core::dictionary::Dictionary;
 use shabdly_core::history::{History, HistoryItem};
-use shabdly_core::learning::{LearnEvent, learn};
+use shabdly_core::learning::{LearnEvent, learn, undo};
 use shabdly_core::pipeline::clean;
-use shabdly_core::providers::CleanupProvider;
+use shabdly_core::providers::{CleanupProvider, Skip};
 use shabdly_core::settings::Settings;
 use shabdly_core::store;
 use std::path::PathBuf;
@@ -41,13 +41,19 @@ pub struct Deps {
     pub data_dir: Option<PathBuf>,
     pub poll: Duration,
     pub max_observe: Duration,
+    /// Words learned this session, oldest first, so the Dictionary tab can undo them after the toast is gone.
+    pub recent_learned: Arc<Mutex<Vec<LearnEvent>>>,
 }
+
+/// How many learned words stay undoable in the Dictionary tab.
+const RECENT_LEARNED: usize = 10;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Outcome {
-    Inserted { text: String, cleanup_skipped: bool, at_ms: i64, element_id: u64 },
+    Inserted { text: String, skipped: Option<Skip>, at_ms: i64, element_id: u64 },
     Copied { text: String },
     Blocked { text: String },
+    SecureInput { text: String },
     Empty,
     Failed { message: String },
 }
@@ -64,6 +70,25 @@ impl Deps {
                 eprintln!("saving dictionary: {e:#}");
             }
         }
+    }
+
+    /// Keeps the events the toast shows (not hint-only ones), the last `RECENT_LEARNED`.
+    pub(crate) fn remember_learned(&self, events: &[LearnEvent]) {
+        let mut r = self.recent_learned.lock().unwrap();
+        r.extend(events.iter().filter(|e| !matches!(e, LearnEvent::HintOnly { .. })).cloned());
+        let extra = r.len().saturating_sub(RECENT_LEARNED);
+        r.drain(..extra);
+    }
+
+    /// Newest first.
+    pub(crate) fn recent_learned(&self) -> Vec<LearnEvent> {
+        self.recent_learned.lock().unwrap().iter().rev().cloned().collect()
+    }
+
+    pub(crate) fn undo_learned(&self, event: &LearnEvent) {
+        undo(&mut self.dict.lock().unwrap(), event);
+        self.save_dict();
+        self.recent_learned.lock().unwrap().retain(|e| e != event);
     }
 
     pub(crate) fn save_history(&self) {
@@ -125,7 +150,7 @@ pub async fn process(deps: &Deps, samples_16k: Vec<f32>) -> Outcome {
     // Stage times only, never the transcript.
     eprintln!(
         "timing: audio {audio_ms} ms, asr {asr_ms} ms, cleanup {clean_ms} ms{}, insert {} ms, words {}",
-        if cleaned.cleanup_skipped { " (skipped)" } else { "" },
+        if cleaned.skipped.is_some() { " (skipped)" } else { "" },
         t.elapsed().as_millis(),
         raw.split_whitespace().count()
     );
@@ -144,9 +169,10 @@ pub async fn process(deps: &Deps, samples_16k: Vec<f32>) -> Outcome {
     let text = cleaned.text;
     match (pasted, field) {
         (PasteOutcome::Pasted, Some(f)) => {
-            Outcome::Inserted { text, cleanup_skipped: cleaned.cleanup_skipped, at_ms, element_id: f.element_id }
+            Outcome::Inserted { text, skipped: cleaned.skipped, at_ms, element_id: f.element_id }
         }
         (PasteOutcome::Blocked, _) => Outcome::Blocked { text },
+        (PasteOutcome::SecureInput, _) => Outcome::SecureInput { text },
         _ => Outcome::Copied { text },
     }
 }
@@ -197,6 +223,7 @@ pub async fn learn_after(
             events = learn(&mut deps.dict.lock().unwrap(), inserted, region, now_ms() / 1000);
             if !events.is_empty() {
                 deps.save_dict();
+                deps.remember_learned(&events);
             }
         }
     }
@@ -299,18 +326,22 @@ fn run(
                     eprintln!("timing: release to done {} ms", released.elapsed().as_millis());
                     warm.store(true, Ordering::SeqCst);
                     let (at_ms, element_id, text) = match outcome {
-                        Outcome::Inserted { text, cleanup_skipped, at_ms, element_id } => {
-                            if cleanup_skipped {
-                                let note = if deps.provider.paused() { "Cleanup paused, typing raw text" } else { "Cleanup skipped" };
-                                overlay(&emit, "error", Some(note));
-                            } else {
-                                overlay(&emit, "hidden", None);
+                        Outcome::Inserted { text, skipped, at_ms, element_id } => {
+                            match skipped {
+                                Some(_) if deps.provider.paused() => {
+                                    overlay(&emit, "error", Some("Cleanup paused, typing raw text"))
+                                }
+                                Some(why) => overlay(&emit, "error", Some(why.message())),
+                                None => overlay(&emit, "hidden", None),
                             }
                             (at_ms, element_id, text)
                         }
                         Outcome::Copied { .. } => return overlay(&emit, "error", Some("Copied, paste it anywhere")),
                         Outcome::Blocked { .. } => {
                             return overlay(&emit, "error", Some("Can't type into password fields"));
+                        }
+                        Outcome::SecureInput { .. } => {
+                            return overlay(&emit, "error", Some("Another app is blocking typing (Secure Input). Text copied."));
                         }
                         Outcome::Empty => return overlay(&emit, "hidden", None),
                         Outcome::Failed { message } => return overlay(&emit, "error", Some(&message)),
@@ -340,7 +371,7 @@ pub(crate) mod tests {
     use crate::local_engine::{Candidate, LocalEngine, Running};
     use crate::platform::{ClipboardSnapshot, FieldText};
     use async_trait::async_trait;
-    use shabdly_core::providers::OllamaProvider;
+    use shabdly_core::providers::{OllamaProvider, Skip};
     use shabdly_core::settings::{Language, LocalEngineKind};
     use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
     use std::time::Instant;
@@ -389,6 +420,7 @@ pub(crate) mod tests {
             data_dir: None,
             poll: Duration::from_millis(5),
             max_observe: Duration::from_secs(2),
+            recent_learned: Default::default(),
         }
     }
 
@@ -449,12 +481,46 @@ pub(crate) mod tests {
     }
 
     #[tokio::test]
+    async fn learned_words_stay_undoable() {
+        let p = Arc::new(FakePlatform::new(vec![field("", 1), field("ask kartik now", 1), field("ask kartik now", 1), field("ask Karthik now", 1)]));
+        let d = deps(p.clone(), "ask kartik now", Arc::new(Echo));
+        let (at, id, text) = inserted(&process(&d, speech()).await);
+        let events = learn_after(&d, text, at, id, Arc::new(AtomicBool::new(false)), enter_now()).await;
+        assert_eq!(events.len(), 1);
+        assert_eq!(d.recent_learned(), events);
+
+        d.undo_learned(&events[0]);
+        assert!(d.recent_learned().is_empty());
+        assert!(d.dict.lock().unwrap().get("Karthik").is_none());
+    }
+
+    #[test]
+    fn recent_learned_keeps_the_last_ten_newest_first() {
+        let d = deps(Arc::new(FakePlatform::new(vec![])), "", Arc::new(Echo));
+        let ev = |k: usize| LearnEvent::Added { word: format!("w{k}"), heard: format!("h{k}") };
+        d.remember_learned(&(0..12).map(ev).collect::<Vec<_>>());
+        d.remember_learned(&[LearnEvent::HintOnly { word: "x".into(), heard: "y".into() }]);
+        let recent = d.recent_learned();
+        assert_eq!(recent.len(), 10);
+        assert_eq!((recent[0].clone(), recent[9].clone()), (ev(11), ev(2)));
+    }
+
+    #[tokio::test]
+    async fn secure_input_elsewhere_copies() {
+        let p = Arc::new(FakePlatform::new(vec![field("", 1)]));
+        p.set_secure_input(true);
+        let d = deps(p.clone(), "hello there", Arc::new(Echo));
+        assert_eq!(process(&d, speech()).await, Outcome::SecureInput { text: "hello there".into() });
+        assert!(matches!(p.snapshot_clipboard(), ClipboardSnapshot::Text(t) if t == "hello there"));
+    }
+
+    #[tokio::test]
     async fn provider_down_inserts_raw_with_swaps() {
         let p = Arc::new(FakePlatform::new(vec![field("", 1)]));
         let d = deps(p.clone(), "tell kartik", Arc::new(Down));
         d.dict.lock().unwrap().upsert_manual("Karthik", vec!["kartik".into()], None, 1);
         let o = process(&d, speech()).await;
-        assert!(matches!(&o, Outcome::Inserted { text, cleanup_skipped: true, .. } if text == "tell Karthik"));
+        assert!(matches!(&o, Outcome::Inserted { text, skipped: Some(Skip::EngineError), .. } if text == "tell Karthik"));
     }
 
     /// The bundled engine's only step: answers "bundled", or fails to start.
@@ -515,7 +581,7 @@ pub(crate) mod tests {
     async fn switch_provider_reports_paused_when_no_engine_starts() {
         let (sp, _) = switch(LocalEngineKind::Bundled, false);
         let d = deps(Arc::new(FakePlatform::new(vec![field("", 1)])), "hello there", sp.clone());
-        assert!(matches!(process(&d, speech()).await, Outcome::Inserted { cleanup_skipped: true, .. }));
+        assert!(matches!(process(&d, speech()).await, Outcome::Inserted { skipped: Some(_), .. }));
         assert!(sp.paused());
     }
 

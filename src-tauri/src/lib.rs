@@ -10,7 +10,7 @@ pub mod observe;
 pub mod platform;
 
 use commands::AppState;
-use dictation::{Controller, Deps, Emit, now_ms};
+use dictation::{Controller, Deps, Emit};
 use engine::{LazyAsr, SwitchProvider};
 use local_engine::LocalEngine;
 use shabdly_core::model_store::model_dir;
@@ -124,6 +124,7 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         data_dir: Some(data_dir.clone()),
         poll: Duration::from_millis(250),
         max_observe: Duration::from_secs(60),
+        recent_learned: Default::default(),
     });
 
     // Every event goes to the windows; a recording start also moves the overlay
@@ -141,14 +142,7 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let (ctl_tx, ctl_rx) = channel();
     let last_hotkey_ms = Arc::new(AtomicI64::new(0));
     let seen = last_hotkey_ms.clone();
-    std::thread::spawn(move || {
-        for ev in raw_rx {
-            seen.store(now_ms(), Ordering::SeqCst);
-            if ctl_tx.send(ev).is_err() {
-                return;
-            }
-        }
-    });
+    std::thread::spawn(move || commands::forward_hotkeys(raw_rx, ctl_tx, &seen));
     let key = settings.lock().unwrap().hotkey.clone();
     let hotkey = hotkey::spawn(key, raw_tx.clone())
         .map_err(|e| eprintln!("hotkey listener not started: {e:#}"))
@@ -259,6 +253,7 @@ pub fn run() {
             commands::clear_history,
             commands::fix_word_cmd,
             commands::undo_learn,
+            commands::recent_learned,
             commands::set_api_key,
             commands::has_api_key,
             commands::reinsert,

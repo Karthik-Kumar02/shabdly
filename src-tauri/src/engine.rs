@@ -2,10 +2,9 @@
 //! cleanup provider (Local, Gemini, Haiku) and the Whisper model (loaded lazily).
 use crate::commands::api_key;
 use crate::local_engine::{EngineStatus, LocalEngine};
-use anyhow::Context;
 use async_trait::async_trait;
 use shabdly_core::asr::{Transcriber, WhisperAsr};
-use shabdly_core::providers::{CleanupProvider, GeminiProvider, HaikuProvider, OllamaProvider};
+use shabdly_core::providers::{CleanupProvider, GeminiProvider, HaikuProvider, OllamaProvider, Skip};
 use shabdly_core::settings::{Language, LocalEngineKind, ProviderKind, Settings};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -57,11 +56,11 @@ impl CleanupProvider for SwitchProvider {
             }
             ProviderKind::Local => OllamaProvider::default().clean(system, text).await,
             ProviderKind::GeminiFree | ProviderKind::GeminiPaid => {
-                let key = api_key("gemini").context("no Gemini API key saved")?;
+                let key = api_key("gemini").ok_or(Skip::NoGeminiKey)?;
                 GeminiProvider::new(key).clean(system, text).await
             }
             ProviderKind::Haiku => {
-                let key = api_key("anthropic").context("no Anthropic API key saved")?;
+                let key = api_key("anthropic").ok_or(Skip::NoClaudeKey)?;
                 HaikuProvider { key }.clean(system, text).await
             }
         }

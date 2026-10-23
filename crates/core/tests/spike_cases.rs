@@ -75,7 +75,7 @@ async fn spike_cases_pass_through_pipeline() {
         let words: Vec<String> =
             low.split(|ch: char| !ch.is_alphanumeric()).filter(|w| !w.is_empty()).map(String::from).collect();
         let mut bad = Vec::new();
-        if out.cleanup_skipped {
+        if out.skipped.is_some() {
             bad.push("cleanup skipped".to_string());
         }
         if out.text.chars().any(|ch| ('\u{0900}'..='\u{097F}').contains(&ch)) {
