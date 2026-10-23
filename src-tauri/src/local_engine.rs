@@ -71,6 +71,13 @@ fn free_port() -> anyhow::Result<u16> {
     Ok(std::net::TcpListener::bind("127.0.0.1:0")?.local_addr()?.port())
 }
 
+/// The port was taken between the pick and the bind. Not "listen": llama-server logs "listening"
+/// on every start, so a later crash would be retried for nothing.
+fn port_taken(log: &str) -> bool {
+    let log = log.to_lowercase();
+    log.contains("bind") || log.contains("address already in use")
+}
+
 async fn healthy(port: u16) -> bool {
     let get = reqwest::get(format!("http://127.0.0.1:{port}/health"));
     matches!(tokio::time::timeout(Duration::from_secs(1), get).await, Ok(Ok(r)) if r.status().is_success())
@@ -157,7 +164,7 @@ impl Candidate for SpawnCandidate {
             if let Some(status) = exited {
                 let log = fs::read_to_string(&log_path).unwrap_or_default();
                 // The port was taken between the pick and the bind: try another one.
-                if attempt < 3 && (log.contains("bind") || log.contains("listen")) {
+                if attempt < 3 && port_taken(&log) {
                     continue;
                 }
                 bail!("{} exited ({status}): {}", self.name, log.lines().last().unwrap_or(""));
@@ -841,6 +848,13 @@ mod tests {
         walk.await.unwrap();
         assert_eq!(engine.status(), EngineStatus::Starting);
         assert!(!alive(pid.load(Ordering::SeqCst)));
+    }
+
+    #[test]
+    fn only_a_taken_port_is_retried() {
+        assert!(port_taken("couldn't bind HTTP server socket, hostname: 127.0.0.1, port: 5123"));
+        assert!(port_taken("cannot listen on 127.0.0.1:5123: POSIXErrorCode(rawValue: 48): Address already in use"));
+        assert!(!port_taken("main: server is listening on http://127.0.0.1:5123\nfailed to load model"));
     }
 
     #[test]
