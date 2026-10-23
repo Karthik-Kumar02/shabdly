@@ -14,6 +14,7 @@
     "windows": [
       {
         "label": "main",
+        "create": false,
         "title": "Shabdly",
         "width": 720,
         "height": 560,
@@ -28,6 +29,7 @@
       },
       {
         "label": "overlay",
+        "create": false,
         "title": "Shabdly overlay",
         "url": "src/overlay.html",
         "width": 240,
