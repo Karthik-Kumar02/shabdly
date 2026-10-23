@@ -220,7 +220,9 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         engines_dir,
         downloading: AtomicBool::new(false),
     });
-    if first_run {
+    // Windows has no Dock icon to reopen the window and hides new tray icons in the
+    // overflow, so the window shows on every launch there; on macOS only while setup is unfinished.
+    if !cfg!(target_os = "macos") || commands::setup_needed(&data_dir, &settings.lock().unwrap()).is_some() {
         show_main(app.handle());
     }
     Ok(())
@@ -229,6 +231,8 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let app = tauri::Builder::default()
+        // Launching Shabdly again brings up the running copy instead of starting a second one.
+        .plugin(tauri_plugin_single_instance::init(|app, _, _| show_main(app)))
         .plugin(tauri_plugin_opener::init())
         .setup(setup)
         .on_window_event(|w, e| {
