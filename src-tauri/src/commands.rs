@@ -1,8 +1,15 @@
 //! Tauri commands for the settings, dictionary and history windows.
 use crate::dictation::{Deps, now_ms};
 use crate::hotkey::{Hotkey, HotkeyEvent, Tracker};
-use crate::local_engine::LocalEngine;
+use crate::engine::EngineSlot;
+use crate::local_engine::EngineStatus;
+use crate::machine;
+use serde::Serialize;
 use shabdly_core::asr::WHISPER_MODELS;
+use shabdly_core::model_store::{self, ModelState};
+use shabdly_core::models::{ModelSpec, best_offered, total_bytes};
+use shabdly_core::settings::{LocalEngineKind, ProviderKind, Speed};
+use std::path::{Path, PathBuf};
 use shabdly_core::setup::{self, OllamaStatus};
 use std::sync::mpsc::Sender;
 use std::time::Duration;
@@ -28,7 +35,11 @@ pub struct AppState {
     /// Where a (re)started hotkey listener sends its events.
     pub hotkey_tx: Sender<HotkeyEvent>,
     /// The bundled cleanup engine (also inside `deps.provider`), stopped on quit.
-    pub local: Arc<LocalEngine>,
+    pub local: EngineSlot,
+    /// Bundled helper executables (`<resources>/engines`).
+    pub engines_dir: PathBuf,
+    /// Set while a model download (setup or Speed switch) runs.
+    pub downloading: AtomicBool,
 }
 
 type CmdResult<T> = Result<T, String>;
@@ -245,9 +256,12 @@ pub async fn pull_model(app: AppHandle) -> CmdResult<()> {
     .map_err(|e| format!("{e:#}"))
 }
 
-fn model_path(state: &AppState, name: &str) -> CmdResult<std::path::PathBuf> {
-    let dir = state.deps.data_dir.as_ref().ok_or("no data folder")?;
-    Ok(dir.join("models").join(name))
+fn models_dir(state: &AppState) -> CmdResult<PathBuf> {
+    Ok(state.deps.data_dir.as_ref().ok_or("no data folder")?.join("models"))
+}
+
+fn model_path(state: &AppState, name: &str) -> CmdResult<PathBuf> {
+    Ok(models_dir(state)?.join(name))
 }
 
 #[tauri::command]
@@ -257,13 +271,230 @@ pub fn whisper_ready(state: State<AppState>, name: String) -> CmdResult<bool> {
 
 #[tauri::command]
 pub async fn download_whisper(app: AppHandle, state: State<'_, AppState>, name: String) -> CmdResult<()> {
-    let url = WHISPER_MODELS.iter().find(|(n, _)| *n == name).ok_or("Unknown speech model")?.1;
+    let url = WHISPER_MODELS.iter().find(|(n, ..)| *n == name).ok_or("Unknown speech model")?.1;
     let dest = model_path(&state, &name)?;
     setup::download(url, &dest, |done, total| {
         let _ = app.emit("setup-progress", serde_json::json!({ "kind": "whisper", "done": done, "total": total }));
     })
     .await
     .map_err(|e| format!("Download failed: {e:#}"))
+}
+
+const GB: u64 = 1_000_000_000;
+
+/// Room for `bytes_needed` plus a 1 GB margin, or the plain message saying how much to free.
+pub fn disk_check(bytes_needed: u64, free: u64) -> Result<(), String> {
+    match (bytes_needed + GB).saturating_sub(free) {
+        0 => Ok(()),
+        short => Err(format!("Free up {} GB and try again", short.div_ceil(GB))),
+    }
+}
+
+/// Clears the download flag when the download ends, however it ends.
+pub struct DownloadGuard<'a>(&'a AtomicBool);
+
+impl Drop for DownloadGuard<'_> {
+    fn drop(&mut self) {
+        self.0.store(false, std::sync::atomic::Ordering::SeqCst);
+    }
+}
+
+/// One download at a time: a second Download click or Speed switch is refused, the first goes on.
+pub fn start_download(flag: &AtomicBool) -> Result<DownloadGuard<'_>, String> {
+    use std::sync::atomic::Ordering::SeqCst;
+    flag.compare_exchange(false, true, SeqCst, SeqCst)
+        .map(|_| DownloadGuard(flag))
+        .map_err(|_| "A download is already running".to_string())
+}
+
+/// Bytes still to download for the speech model `name` (0 when it is there).
+fn speech_needs(models: &Path, name: &str) -> u64 {
+    if models.join(name).exists() {
+        return 0;
+    }
+    WHISPER_MODELS.iter().find(|m| m.0 == name).map_or(0, |m| m.2)
+}
+
+/// Bytes `spec` still needs (0 when ready). The first check may hash the files (seconds).
+async fn engine_needs(models: PathBuf, spec: &'static ModelSpec) -> CmdResult<u64> {
+    let found = tauri::async_runtime::spawn_blocking(move || {
+        model_store::locate(spec, &models, model_store::hf_hub_dir().as_deref())
+    })
+    .await
+    .map_err(msg)?
+    .map_err(msg)?;
+    Ok(match found {
+        ModelState::Ready(_) => 0,
+        ModelState::Missing { bytes_needed } => bytes_needed,
+    })
+}
+
+/// Checks free space, then downloads the speech model `whisper` (when given and missing) and then
+/// `spec` (when missing), as one `setup-progress` of kind "all". True when `spec` was downloaded.
+async fn download_missing(
+    app: &AppHandle,
+    models: &Path,
+    whisper: Option<&str>,
+    spec: Option<&'static ModelSpec>,
+) -> CmdResult<bool> {
+    let speech = whisper.map_or(0, |w| speech_needs(models, w));
+    let engine = match spec {
+        Some(spec) => engine_needs(models.to_path_buf(), spec).await?,
+        None => 0,
+    };
+    disk_check(speech + engine, machine::free_bytes(models))?;
+    // Whole files, so the bar matches what download_model reports for files already there.
+    let total = speech + if engine > 0 { spec.map_or(0, total_bytes) } else { 0 };
+    let emit = |done: u64| {
+        let _ = app.emit("setup-progress", serde_json::json!({ "kind": "all", "done": done, "total": total }));
+    };
+    let failed = |e: anyhow::Error| {
+        eprintln!("model download: {e:#}");
+        msg(e)
+    };
+    if let Some(name) = whisper.filter(|_| speech > 0) {
+        let url = WHISPER_MODELS.iter().find(|m| m.0 == name).ok_or("Unknown speech model")?.1;
+        setup::download(url, &models.join(name), |done, _| emit(done)).await.map_err(failed)?;
+    }
+    if let Some(spec) = spec.filter(|_| engine > 0) {
+        setup::download_model(spec, models, |done, _| emit(speech + done)).await.map_err(failed)?;
+    }
+    Ok(engine > 0)
+}
+
+/// Starts an engine for `spec` and, only once its own model runs (not a backup), puts it in use
+/// and stops the old one. On failure the old engine keeps running.
+async fn swap_engine(state: &AppState, spec: &'static ModelSpec) -> CmdResult<()> {
+    let data_dir = state.deps.data_dir.as_ref().ok_or("no data folder")?;
+    let new = crate::new_engine(data_dir, &state.engines_dir, Some(spec));
+    new.ensure().await;
+    if new.status() != EngineStatus::Builtin {
+        new.stop();
+        return Err("The new model did not start, so Shabdly keeps the current one".into());
+    }
+    let old = std::mem::replace(&mut *state.local.lock().unwrap(), new);
+    old.stop();
+    Ok(())
+}
+
+/// Applies `change` to the current settings and saves them.
+fn update_settings(state: &AppState, change: impl FnOnce(&mut Settings)) -> CmdResult<()> {
+    let mut current = state.deps.settings.lock().unwrap();
+    let mut s = current.clone();
+    change(&mut s);
+    if let Some(dir) = &state.deps.data_dir {
+        store::save(&dir.join("settings.json"), &s).map_err(msg)?;
+    }
+    *current = s;
+    Ok(())
+}
+
+fn bundled(s: &Settings) -> bool {
+    s.provider == ProviderKind::Local && s.local_engine == LocalEngineKind::Bundled
+}
+
+#[derive(Debug, Serialize)]
+pub struct ModelsStatus {
+    pub speech_ready: bool,
+    pub engine_ready: bool,
+    /// False on macOS 11.0 to 13.2: no bundled engine, so setup offers Ollama or a cloud engine.
+    pub engine_offered: bool,
+    /// Settings shows Best quality only when true (16 GB of RAM or more and a usable GPU).
+    pub best_offered: bool,
+    /// Bytes still to download for both. 0 for the engine on macOS 11.0 to 13.2 (none offered).
+    pub bytes_needed: u64,
+    pub free_bytes: u64,
+}
+
+#[tauri::command]
+pub async fn models_status(state: State<'_, AppState>) -> CmdResult<ModelsStatus> {
+    let s = state.deps.settings.lock().unwrap().clone();
+    let models = models_dir(&state)?;
+    let speech = speech_needs(&models, &s.whisper_model);
+    let spec = machine::chosen_spec(&s, &state.engines_dir);
+    let engine = match spec {
+        Some(spec) => engine_needs(models.clone(), spec).await?,
+        None => 0,
+    };
+    Ok(ModelsStatus {
+        speech_ready: models.join(&s.whisper_model).exists(),
+        engine_ready: engine == 0,
+        engine_offered: spec.is_some(),
+        best_offered: best_offered(machine::ram_gb(), machine::has_gpu(&state.engines_dir)),
+        bytes_needed: speech + engine,
+        free_bytes: machine::free_bytes(&models),
+    })
+}
+
+/// The Download step: speech model, then cleanup model, then (when bundled) the engine starts.
+#[tauri::command]
+pub async fn download_models(app: AppHandle, state: State<'_, AppState>) -> CmdResult<()> {
+    let _guard = start_download(&state.downloading)?;
+    let s = state.deps.settings.lock().unwrap().clone();
+    let spec = machine::chosen_spec(&s, &state.engines_dir);
+    let fetched = download_missing(&app, &models_dir(&state)?, Some(&s.whisper_model), spec).await?;
+    if fetched && bundled(&s) {
+        let local = state.local.lock().unwrap().clone();
+        local.retry().await;
+    }
+    Ok(())
+}
+
+/// The Best quality / Fastest switch: downloads the other model if missing, then swaps engines.
+/// Settings change only when everything worked.
+#[tauri::command]
+pub async fn set_speed(app: AppHandle, state: State<'_, AppState>, speed: Speed) -> CmdResult<()> {
+    let _guard = start_download(&state.downloading)?;
+    if speed == Speed::Best && !best_offered(machine::ram_gb(), machine::has_gpu(&state.engines_dir)) {
+        return Err("Best quality needs 16 GB of memory or more".into());
+    }
+    let mut s = state.deps.settings.lock().unwrap().clone();
+    s.speed = Some(speed);
+    // None: no bundled engine on this macOS, so only the setting is saved.
+    if let Some(spec) = machine::chosen_spec(&s, &state.engines_dir) {
+        download_missing(&app, &models_dir(&state)?, None, Some(spec)).await?;
+        if bundled(&s) {
+            swap_engine(&state, spec).await?;
+        }
+    }
+    update_settings(&state, |s| s.speed = Some(speed))
+}
+
+#[tauri::command]
+pub fn engine_status(state: State<AppState>) -> EngineStatus {
+    state.local.lock().unwrap().status()
+}
+
+/// Settings "Retry": walk the fallback chain again from step 1.
+#[tauri::command]
+pub async fn retry_engine(state: State<'_, AppState>) -> CmdResult<()> {
+    let local = state.local.lock().unwrap().clone();
+    local.retry().await;
+    Ok(())
+}
+
+/// 0.1.5 upgraders on Ollama: when the cleanup model is on disk and the bundled engine starts,
+/// switch to it and return true. Otherwise nothing changes.
+#[tauri::command]
+pub async fn try_builtin_switch(state: State<'_, AppState>) -> CmdResult<bool> {
+    let s = state.deps.settings.lock().unwrap().clone();
+    if s.builtin_offer_done || s.provider != ProviderKind::Local {
+        return Ok(false);
+    }
+    let Some(spec) = machine::chosen_spec(&s, &state.engines_dir) else { return Ok(false) };
+    if engine_needs(models_dir(&state)?, spec).await? > 0 || swap_engine(&state, spec).await.is_err() {
+        return Ok(false);
+    }
+    update_settings(&state, |s| {
+        s.local_engine = LocalEngineKind::Bundled;
+        s.builtin_offer_done = true;
+    })?;
+    Ok(true)
+}
+
+#[tauri::command]
+pub fn dismiss_builtin_offer(state: State<AppState>) -> CmdResult<()> {
+    update_settings(&state, |s| s.builtin_offer_done = true)
 }
 
 /// Shows the macOS Accessibility prompt when not yet allowed.
@@ -385,6 +616,22 @@ mod tests {
         assert!(globe_key_conflict(Some("1")));
         // Not set: macOS default; Fn dictation worked on the developer's Mac with it.
         assert!(!globe_key_conflict(None));
+    }
+
+    #[test]
+    fn disk_check_keeps_a_1_gb_margin() {
+        assert_eq!(disk_check(5_000_000_000, 5_500_000_000), Err("Free up 1 GB and try again".to_string()));
+        assert_eq!(disk_check(5_000_000_000, 7_000_000_000), Ok(()));
+        assert_eq!(disk_check(5_000_000_000, 1_000_000_000), Err("Free up 5 GB and try again".to_string()));
+    }
+
+    #[test]
+    fn second_download_is_refused() {
+        let flag = AtomicBool::new(false);
+        let first = start_download(&flag).unwrap();
+        assert_eq!(start_download(&flag).err(), Some("A download is already running".to_string()));
+        drop(first);
+        assert!(start_download(&flag).is_ok(), "free again once the first one ends");
     }
 
     #[tokio::test]

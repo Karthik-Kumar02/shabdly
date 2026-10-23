@@ -1,4 +1,4 @@
-// First-run setup (spec "First-run setup" steps 1 to 6). Shown until
+// First-run setup (spec "First-run setup" steps 1 to 5). Shown until
 // settings.json exists; the last step saves settings and opens the app.
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
@@ -9,19 +9,38 @@ import { SPRING, SPRING_MS, enter } from "./motion";
 type Step = (card: HTMLElement, next: () => void) => Promise<void> | void;
 
 export const GLOBE_WARNING = `macOS also acts on the Fn (Globe) key, which can open the emoji picker while you dictate. In Keyboard settings, set "Press Globe key to" to "Do Nothing". <button>Open Keyboard settings</button>`;
-type Progress = { kind: "model" | "whisper"; done: number; total: number };
+type Progress = { kind: "all" | "model" | "whisper"; done: number; total: number };
+export type ModelsStatus = {
+  speech_ready: boolean;
+  engine_ready: boolean;
+  engine_offered: boolean;
+  best_offered: boolean;
+  bytes_needed: number;
+  free_bytes: number;
+};
 
-const gb = (n: number) => (n / 1e9).toFixed(1);
+export const gb = (n: number) => (n / 1e9).toFixed(1);
 
-function progressBar(card: HTMLElement, kind: Progress["kind"]) {
-  card.querySelector(".progress")?.remove();
-  card.insertAdjacentHTML("beforeend", `<div class="progress"><div></div></div><p class="status" id="pct"></p>`);
+// Bar plus "{done} of {total} GB, about {m} min left", above the step's #st line. The time left
+// uses the average rate over the last 10 s and is left out for the first 3 s.
+export function progressBar(card: HTMLElement, kind: Progress["kind"]) {
+  card.querySelectorAll(".progress, #pct").forEach((el) => el.remove());
+  const html = `<div class="progress"><div></div></div><p class="status" id="pct"></p>`;
+  const st = card.querySelector("#st");
+  st ? st.insertAdjacentHTML("beforebegin", html) : card.insertAdjacentHTML("beforeend", html);
   const bar = card.querySelector<HTMLElement>(".progress > div")!;
   const label = card.querySelector<HTMLElement>("#pct")!;
-  return listen<Progress>("setup-progress", ({ payload }) => {
-    if (payload.kind !== kind || !payload.total) return;
-    bar.style.width = `${(100 * payload.done) / payload.total}%`;
-    label.textContent = `${gb(payload.done)} of ${gb(payload.total)} GB`;
+  const start = performance.now();
+  const seen: [number, number][] = [];
+  return listen<Progress>("setup-progress", ({ payload: { kind: k, done, total } }) => {
+    const now = performance.now();
+    if (k !== kind || !total || (seen.length && now - seen[seen.length - 1][0] < 250)) return;
+    seen.push([now, done]);
+    while (now - seen[0][0] > 10_000) seen.shift();
+    const rate = now > seen[0][0] ? (done - seen[0][1]) / (now - seen[0][0]) : 0;
+    const left = now - start >= 3000 && rate > 0 ? `, about ${Math.max(1, Math.round((total - done) / rate / 60_000))} min left` : "";
+    bar.style.width = `${(100 * done) / total}%`;
+    label.textContent = `${gb(done)} of ${gb(total)} GB${left}`;
   });
 }
 
@@ -78,12 +97,19 @@ const accessibility: Step = async (card, next) => {
   await check();
 };
 
-const engine: Step = async (card, next) => {
+// Behind the Download step's Advanced link: Ollama or a cloud engine, then the speech model.
+const advanced: Step = async (card, done) => {
+  const next = () => whisper(card, done);
+  const useOllama = async () => {
+    const s = await invoke<Settings>("get_settings");
+    await invoke("set_settings", { settings: { ...s, provider: "local", local_engine: "ollama" } });
+    next();
+  };
   card.innerHTML = `<h2>Cleanup engine</h2><p>Checking for the local engine...</p>`;
   const status = await invoke<"missing" | "no_model" | "ready">("ollama_status");
   if (status === "ready") {
     card.innerHTML = `<h2>Cleanup engine</h2><p>The local engine is ready. Your words stay on this computer.</p><button class="primary" id="go">Continue</button>`;
-    card.querySelector("#go")!.addEventListener("click", next);
+    card.querySelector("#go")!.addEventListener("click", useOllama);
     return;
   }
   if (status === "no_model") {
@@ -98,7 +124,7 @@ const engine: Step = async (card, next) => {
       try {
         await invoke("pull_model");
         stop();
-        next();
+        await useOllama();
       } catch (e) {
         stop();
         card.querySelector<HTMLElement>("#st")!.textContent = String(e);
@@ -125,7 +151,7 @@ const engine: Step = async (card, next) => {
     </div>
     <p class="status" id="st"></p>`;
   card.querySelector("#install")!.addEventListener("click", () => openUrl("https://ollama.com/download"));
-  card.querySelector("#again")!.addEventListener("click", () => engine(card, next));
+  card.querySelector("#again")!.addEventListener("click", () => advanced(card, done));
   let provider: Settings["provider"] = "gemini_free";
   const pick = (p: Settings["provider"]) => () => {
     provider = p;
@@ -170,6 +196,56 @@ const whisper: Step = async (card, next) => {
       (ev.target as HTMLButtonElement).disabled = false;
     }
   });
+};
+
+// Speech and cleanup models in one go. Ollama and cloud users only need the speech model, and
+// Macs without a bundled engine (macOS 11.0 to 13.2) go straight to the Advanced choices.
+const download: Step = async (card, next) => {
+  const s = await invoke<Settings>("get_settings");
+  if (s.provider !== "local" || s.local_engine !== "bundled") return whisper(card, next);
+  card.innerHTML = `<h2>Download</h2><p>Checking for models...</p>`;
+  const m = await invoke<ModelsStatus>("models_status");
+  if (!m.engine_offered) return advanced(card, next);
+  if (!m.bytes_needed) {
+    // The engine started before this check copied a cached model in, so it may be on a backup.
+    if ((await invoke<{ state: string }>("engine_status")).state !== "builtin") invoke("retry_engine");
+    card.innerHTML = `
+      <h2>Download</h2>
+      <p>Models found, ready.</p>
+      <button class="primary" id="go">Continue</button>
+      <button class="link" id="adv">Advanced: use Ollama or a cloud engine</button>`;
+    card.querySelector("#go")!.addEventListener("click", next);
+    card.querySelector("#adv")!.addEventListener("click", () => advanced(card, next));
+    return;
+  }
+  card.innerHTML = `
+    <h2>Download</h2>
+    <p>Shabdly needs two models to work offline (${gb(m.bytes_needed)} GB, one time).</p>
+    <button class="primary" id="dl">Download</button>
+    <p class="status" id="st"></p>
+    <button class="link" id="adv">Advanced: use Ollama or a cloud engine</button>`;
+  const dl = card.querySelector<HTMLButtonElement>("#dl")!;
+  const adv = card.querySelector<HTMLButtonElement>("#adv")!;
+  const st = card.querySelector<HTMLElement>("#st")!;
+  const run = async () => {
+    dl.hidden = adv.hidden = true;
+    st.className = "status";
+    st.textContent = "";
+    const stop = await progressBar(card, "all");
+    try {
+      await invoke("download_models");
+      stop();
+      next();
+    } catch (e) {
+      stop();
+      adv.hidden = false;
+      st.className = "status bad";
+      st.innerHTML = `${esc(String(e))} <button id="again">Try again</button>`;
+      st.querySelector("#again")!.addEventListener("click", run);
+    }
+  };
+  dl.addEventListener("click", run);
+  adv.addEventListener("click", () => advanced(card, next));
 };
 
 const practice: Step = async (card, next) => {
@@ -222,7 +298,7 @@ const practice: Step = async (card, next) => {
 
 // "speech_model": settings exist but the chosen speech model is missing.
 export function startOnboarding(root: HTMLElement, done: () => void, only?: "speech_model") {
-  const steps: Step[] = only ? [whisper] : [welcome, microphone, ...(isMac ? [accessibility] : []), engine, whisper, practice];
+  const steps: Step[] = only ? [download] : [welcome, microphone, ...(isMac ? [accessibility] : []), download, practice];
   let i = 0;
   const show = () => {
     if (i >= steps.length) return done();

@@ -11,12 +11,19 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
+/// The bundled engine in use; the Speed switch swaps in a new one once it has started.
+pub type EngineSlot = Arc<Mutex<Arc<LocalEngine>>>;
+
 pub struct SwitchProvider {
     pub settings: Arc<Mutex<Settings>>,
-    pub local: Arc<LocalEngine>,
+    pub local: EngineSlot,
 }
 
 impl SwitchProvider {
+    fn local(&self) -> Arc<LocalEngine> {
+        self.local.lock().unwrap().clone()
+    }
+
     fn kind(&self) -> ProviderKind {
         self.settings.lock().unwrap().provider
     }
@@ -32,7 +39,7 @@ impl SwitchProvider {
 impl CleanupProvider for SwitchProvider {
     fn base_timeout(&self) -> Duration {
         match self.kind() {
-            ProviderKind::Local if self.bundled() => self.local.base_timeout(),
+            ProviderKind::Local if self.bundled() => self.local().base_timeout(),
             ProviderKind::Local => OllamaProvider::default().base_timeout(),
             _ => Duration::from_secs(30),
         }
@@ -42,10 +49,11 @@ impl CleanupProvider for SwitchProvider {
         match self.kind() {
             ProviderKind::Local if self.bundled() => {
                 // Switched to the bundled engine after launch: start it now.
-                if self.local.status() == EngineStatus::Starting {
-                    self.local.ensure().await;
+                let local = self.local();
+                if local.status() == EngineStatus::Starting {
+                    local.ensure().await;
                 }
-                self.local.clean(system, text).await
+                local.clean(system, text).await
             }
             ProviderKind::Local => OllamaProvider::default().clean(system, text).await,
             ProviderKind::GeminiFree | ProviderKind::GeminiPaid => {
@@ -60,7 +68,7 @@ impl CleanupProvider for SwitchProvider {
     }
 
     fn paused(&self) -> bool {
-        self.bundled() && matches!(self.local.status(), EngineStatus::Paused { .. })
+        self.bundled() && matches!(self.local().status(), EngineStatus::Paused { .. })
     }
 }
 

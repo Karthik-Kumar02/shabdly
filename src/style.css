@@ -116,6 +116,14 @@ h2.grp { margin: 20px 4px 6px; font: 600 11px/1.4 -apple-system, BlinkMacSystemF
 .r { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 44px; margin: 0; padding: 6px 14px; font-weight: 400; }
 .r > label { margin: 0; font-weight: 400; }
 .r + .r, .r + #dl:not(:empty) { border-top: 0.5px solid var(--line); }
+/* Built-in engine: Speed row and the status line under the picker. */
+#eng > *, #eng + .r { border-top: 0.5px solid var(--line); }
+#eng .eline { padding: 2px 14px 10px; }
+#eng .eline .status { margin: 8px 0 0; }
+/* Upgrade offer above the page. */
+#banner:empty { display: none; }
+.banner { padding: 14px 16px; margin: 6px 0 18px; box-shadow: 0 0 0 0.5px var(--gold), 0 1px 2px rgba(0, 0, 0, 0.04); }
+.banner .status { margin: 10px 0 0; }
 .r > span:first-child small { display: block; max-width: 220px; color: var(--muted); font-size: 11.5px; }
 .r select { width: 250px; margin: 0; }
 .r .inline { display: flex; gap: 6px; }
@@ -239,6 +247,8 @@ input[type="checkbox"]:focus-visible { outline: none; box-shadow: 0 0 0 3px var(
 .stepdots i.cur { width: 16px; }
 .progress { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; margin: 10px 0; }
 .progress > div { height: 100%; background: linear-gradient(90deg, #b3843f, #e6c582, #fcf0cf); border-radius: 3px; width: 0; transition: width 0.25s; }
+.card .link { display: block; margin: 14px 0 0; padding: 0; border: 0; background: none; box-shadow: none; color: var(--muted); font-size: 12px; font-weight: 400; }
+.card .link:hover:not(:disabled) { color: var(--fg); text-decoration: underline; }
 .practice { display: block; width: 100%; min-height: 90px; margin: 8px 0; border-radius: 10px; resize: vertical; }
 
 /* Overlay: a small ink bead centred in the transparent window. The window can't blur
@@ -310,6 +320,6 @@ html:has(.overlay-body) { background: transparent; }
 }
 @media (prefers-reduced-motion: reduce) {
   .pill, .dots i { animation: none; }
-  nav.ready .indicator, input[type="checkbox"]::after { transition: none; }
+  nav.ready .indicator, input[type="checkbox"]::after, .progress > div { transition: none; }
   button:active:not(:disabled), .filebtn:active { transform: none; }
 }

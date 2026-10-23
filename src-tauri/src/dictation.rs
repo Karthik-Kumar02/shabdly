@@ -488,7 +488,7 @@ pub(crate) mod tests {
         let starts = Arc::new(AtomicUsize::new(0));
         let local = LocalEngine::new(vec![Box::new(FakeBundled { ok, starts: starts.clone() })]);
         let settings = Arc::new(Mutex::new(Settings { local_engine: kind, ..Default::default() }));
-        (Arc::new(SwitchProvider { settings, local }), starts)
+        (Arc::new(SwitchProvider { settings, local: Arc::new(Mutex::new(local)) }), starts)
     }
 
     #[tokio::test]
