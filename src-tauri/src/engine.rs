@@ -5,7 +5,7 @@ use crate::local_engine::{EngineStatus, LocalEngine};
 use async_trait::async_trait;
 use shabdly_core::asr::{Transcriber, WhisperAsr};
 use shabdly_core::providers::{CleanupProvider, GeminiProvider, HaikuProvider, OllamaProvider, Skip};
-use shabdly_core::settings::{Language, LocalEngineKind, ProviderKind, Settings};
+use shabdly_core::settings::{Language, ProviderKind, Settings};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -27,10 +27,8 @@ impl SwitchProvider {
         self.settings.lock().unwrap().provider
     }
 
-    /// Local served by the bundled engine (new installs), not by Ollama (0.1.5 upgraders).
     fn bundled(&self) -> bool {
-        let s = self.settings.lock().unwrap();
-        s.provider == ProviderKind::Local && s.local_engine == LocalEngineKind::Bundled
+        self.settings.lock().unwrap().bundled()
     }
 }
 

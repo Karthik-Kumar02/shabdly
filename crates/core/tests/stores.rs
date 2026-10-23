@@ -141,6 +141,9 @@ fn new_install_defaults_to_bundled() {
     let s = Settings::default();
     assert_eq!(s.local_engine, LocalEngineKind::Bundled);
     assert!(s.builtin_offer_done);
+    assert!(s.bundled());
+    assert!(!Settings { local_engine: LocalEngineKind::Ollama, ..s.clone() }.bundled());
+    assert!(!Settings { provider: ProviderKind::Haiku, ..s }.bundled());
 }
 
 #[test]

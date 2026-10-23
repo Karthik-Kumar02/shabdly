@@ -75,7 +75,7 @@ pub fn set_settings(state: State<AppState>, settings: Settings) -> CmdResult<()>
     if let Some(dir) = &state.deps.data_dir {
         store::save(&dir.join("settings.json"), &settings).map_err(msg)?;
     }
-    let (was, now) = (bundled(&state.deps.settings.lock().unwrap()), bundled(&settings));
+    let (was, now) = (state.deps.settings.lock().unwrap().bundled(), settings.bundled());
     *state.deps.settings.lock().unwrap() = settings;
     // The built-in helper holds 3 to 4 GB: free it when the user leaves it, start it on return.
     let engine = state.local.lock().unwrap().clone();
@@ -413,10 +413,6 @@ fn update_settings(state: &AppState, change: impl FnOnce(&mut Settings)) -> CmdR
     Ok(())
 }
 
-fn bundled(s: &Settings) -> bool {
-    s.provider == ProviderKind::Local && s.local_engine == LocalEngineKind::Bundled
-}
-
 #[derive(Debug, Serialize)]
 pub struct ModelsStatus {
     pub speech_ready: bool,
@@ -457,7 +453,7 @@ pub async fn download_models(app: AppHandle, state: State<'_, AppState>) -> CmdR
     let s = state.deps.settings.lock().unwrap().clone();
     let spec = machine::chosen_spec(&s, &state.engines_dir);
     let fetched = download_missing(&app, &models_dir(&state)?, Some(&s.whisper_model), spec).await?;
-    if fetched && bundled(&s) {
+    if fetched && s.bundled() {
         let local = state.local.lock().unwrap().clone();
         local.retry().await;
     }
@@ -477,7 +473,7 @@ pub async fn set_speed(app: AppHandle, state: State<'_, AppState>, speed: Speed)
     // None: no bundled engine on this macOS, so only the setting is saved.
     if let Some(spec) = machine::chosen_spec(&s, &state.engines_dir) {
         download_missing(&app, &models_dir(&state)?, None, Some(spec)).await?;
-        if bundled(&s) {
+        if s.bundled() {
             swap_engine(&state, spec).await?;
         }
     }
