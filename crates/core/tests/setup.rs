@@ -28,20 +28,6 @@ fn pull_line_progress() {
     assert_eq!(parse_pull_line("garbage"), None);
 }
 
-/// Serve one HTTP response on a random local port; returns the URL.
-async fn serve_once(response: Vec<u8>) -> String {
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let addr = listener.local_addr().unwrap();
-    tokio::spawn(async move {
-        let (mut sock, _) = listener.accept().await.unwrap();
-        let mut buf = [0u8; 1024];
-        let _ = sock.read(&mut buf).await;
-        sock.write_all(&response).await.unwrap();
-        let _ = sock.shutdown().await;
-    });
-    format!("http://{addr}/model.bin")
-}
-
 /// Serve every connection with `reply(request)`; returns the URL and the requests seen
 /// (lowercased, so header names compare regardless of case).
 async fn serve(reply: impl Fn(&str) -> Vec<u8> + Send + 'static) -> (String, Arc<Mutex<Vec<String>>>) {
