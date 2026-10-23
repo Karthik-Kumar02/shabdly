@@ -7,7 +7,7 @@ use async_trait::async_trait;
 use serde::Serialize;
 use shabdly_core::model_store::model_dir;
 use shabdly_core::models::{EngineKind, ModelSpec};
-use shabdly_core::pipeline::{finish_sentence, warm_up};
+use shabdly_core::pipeline::{finish_sentence_from, warm_up};
 use shabdly_core::prompt::system_prompt;
 use shabdly_core::providers::{CleanupProvider, OllamaProvider, OpenAiProvider};
 use shabdly_core::settings::{Language, Speed};
@@ -24,7 +24,7 @@ use std::time::{Duration, Instant};
 pub trait Candidate: Send + Sync {
     fn name(&self) -> &'static str;
     async fn start(&self) -> anyhow::Result<Running>;
-    /// E2B drops the final punctuation (spec risk Q1), so its replies go through `finish_sentence`.
+    /// E2B drops the final punctuation (spec risk Q1), so its replies go through `finish_sentence_from`.
     fn punctuate(&self) -> bool {
         false
     }
@@ -425,7 +425,7 @@ impl CleanupProvider for LocalEngine {
                         let _ = tokio::spawn(async move { me.restart().await }).await;
                     }
                 }
-                r => return r.map(|t| if punctuate { finish_sentence(&t) } else { t }),
+                r => return r.map(|t| if punctuate { finish_sentence_from(&t, text) } else { t }),
             }
         }
     }

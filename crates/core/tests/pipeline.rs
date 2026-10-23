@@ -3,7 +3,7 @@ use async_trait::async_trait;
 use common::dict;
 use serde_json::json;
 use shabdly_core::dictionary::Dictionary;
-use shabdly_core::pipeline::{clean, finish_sentence, timeout_for};
+use shabdly_core::pipeline::{clean, finish_sentence, finish_sentence_from, timeout_for};
 use shabdly_core::prompt::system_prompt;
 use shabdly_core::providers::{
     CleanupProvider, ollama_body, openai_body, parse_anthropic, parse_gemini, parse_ollama, parse_openai,
@@ -217,4 +217,16 @@ fn finish_sentence_spots_questions() {
     ] {
         assert_eq!(finish_sentence(s), want);
     }
+}
+
+#[test]
+fn finish_sentence_from_keeps_whispers_question_mark() {
+    // E2B dropped the `?` and the word lists miss a question that starts with "So" or "Hello".
+    assert_eq!(finish_sentence_from("So how have you been", "So how have you been?"), "So how have you been?");
+    assert_eq!(finish_sentence_from("Hello how have you been", "Hello, how have you been?"), "Hello how have you been?");
+    assert_eq!(finish_sentence_from("क्या तुम आ रहे हो", "क्या तुम आ रहे हो?"), "क्या तुम आ रहे हो?");
+    // The model's own ending stays.
+    assert_eq!(finish_sentence_from("Thank you.", "Thank you?"), "Thank you.");
+    // Without a `?` in the raw text the word lists decide, as before.
+    assert_eq!(finish_sentence_from("bhai kal milte hain na", "bhai kal milte hain na"), "Bhai kal milte hain na.");
 }

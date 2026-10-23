@@ -114,3 +114,14 @@ pub fn finish_sentence(text: &str) -> String {
     };
     format!("{}{}{}{mark}", capitalize(head), &tail[..tail.len() - sentence.len()], capitalize(sentence))
 }
+
+/// `finish_sentence` for a cleanup of `raw`: when Whisper heard a question (`raw` ends in `?`)
+/// and the model dropped the mark, the sentence ends in `?` whatever the word lists say.
+pub fn finish_sentence_from(text: &str, raw: &str) -> String {
+    let out = finish_sentence(text);
+    let asked = raw.trim_end().trim_end_matches(['"', '\'', '”', '’', ')', ']']).ends_with('?');
+    match out.strip_suffix(['.', '।']) {
+        Some(head) if asked && out != text => format!("{head}?"),
+        _ => out,
+    }
+}
