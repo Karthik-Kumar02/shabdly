@@ -1,6 +1,6 @@
 [package]
 name = "shabdly"
-version = "0.2.0"
+version = "0.2.1"
 description = "Words that learn you. Private voice dictation."
 authors = ["Sai Karthik Sanjeev Kumar"]
 license = "MIT"

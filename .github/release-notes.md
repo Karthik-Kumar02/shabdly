@@ -1,19 +1,10 @@
-## What's new
+## Fixes
 
-- **Built-in cleanup engine.** No Ollama needed. Setup downloads one small model with one click (about 4 GB together with the speech model), and the download resumes if your connection drops. On Mac, cleanup is about 2x faster than with Ollama.
-- **Fastest or Best.** Every computer starts on Fastest. With 16 GB of memory or more, switch to Best in Settings for a little more accuracy.
-- **Never stuck.** If the built-in engine stops, Shabdly restarts it, then falls back to Ollama (if installed), and otherwise types your words without cleanup. Settings shows which engine is running, with a Retry button.
-- **Ollama is now optional.** Updating with Ollama set up? Shabdly switches to the built-in engine when its model is already on your computer, or offers the download. Ollama stays available under Advanced, and 0.1.5 still opens your settings if you go back.
-- Questions keep their question mark, and long dictations are never cut off.
-- Speech recognition: whisper.cpp flash attention was tested and stays off for now, because it changed language detection on real Hindi recordings.
-- macOS 13.2 and earlier: the built-in engine needs macOS 13.3 or later, so keep using Ollama or a cloud engine there.
-
-## Polish
-
-- When cleanup is skipped, the pill says why: no Gemini or Claude key, Ollama not running, took too long, or engine error.
-- Setup's hotkey check only counts the dictation key itself, and a Check again button re-runs it.
-- When another app holds Secure Input, Shabdly copies your text and says so instead of failing quietly.
-- Missed the Undo on a "Learned" toast? The last 10 learned words have Undo under Recently learned in the Dictionary tab.
+- **No more duplicate engine.** Switching between Fastest and Best (or turning off the built-in engine) while the engine was still starting could leave a second copy running in the background, using about 2.6 GB of memory. Shabdly now stops it.
+- If your disk fills up during a download, Shabdly says how many GB to free instead of showing a system error.
+- Ollama: a reply cut off at its length limit is no longer typed; your words go in without cleanup instead.
+- Finds models you already downloaded with Hugging Face tools when their cache is in a custom folder (`HF_HUB_CACHE` or `XDG_CACHE_HOME`).
+- Windows: Best quality is offered only when a graphics card is really found.
 
 ## Download
 
