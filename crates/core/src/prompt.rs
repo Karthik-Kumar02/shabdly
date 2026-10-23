@@ -16,7 +16,7 @@ pub fn system_prompt(lang: Language, hints: &[(String, Vec<String>)]) -> String 
     p += &format!("- {}\n", script_rule(lang));
     p += "- Keep English words as English. Do not translate between languages.\n";
     p += "- Remove filler words (um, uh, like, basically when filler). Apply self-corrections (\"5, no wait, 6\" -> \"6\").\n";
-    p += "- Fix punctuation and capitalization.\n";
+    p += "- Keep the punctuation already in the text and add any that is missing. Fix capitalization.\n";
     if !hints.is_empty() {
         let list: Vec<String> = hints
             .iter()
