@@ -279,8 +279,9 @@ const practice: Step = async (card, next) => {
     if (!card.isConnected) return;
     health.className = "status bad";
     health.innerHTML = `Shabdly can't see your hotkey.
-      ${isMac ? `<button id="pane">Open Input Monitoring</button>` : ""} Or pick another key above.`;
+      ${isMac ? `<button id="pane">Open Input Monitoring</button>` : ""} <button id="recheck">Check again</button> Or pick another key above.`;
     card.querySelector("#pane")?.addEventListener("click", () => invoke("open_settings_pane", { pane: "input_monitoring" }));
+    card.querySelector("#recheck")!.addEventListener("click", watch);
   };
   card.querySelector("#hotkey")!.addEventListener("change", async (ev) => {
     const hotkey = (ev.target as HTMLSelectElement).value;
