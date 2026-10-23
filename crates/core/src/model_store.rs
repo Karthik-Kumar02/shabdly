@@ -22,13 +22,23 @@ pub fn model_dir(models_dir: &Path, spec: &ModelSpec) -> PathBuf {
     models_dir.join(spec.id)
 }
 
-/// `$HF_HOME/hub`, else `<home>/.cache/huggingface/hub`.
+/// Where `huggingface_hub` keeps its cache, in its own order.
 pub fn hf_hub_dir() -> Option<PathBuf> {
-    if let Some(h) = std::env::var_os("HF_HOME").filter(|h| !h.is_empty()) {
-        return Some(PathBuf::from(h).join("hub"));
+    hf_hub_dir_from(|k| std::env::var_os(k))
+}
+
+/// `$HF_HUB_CACHE`, else `$HF_HOME/hub`, else `$XDG_CACHE_HOME/huggingface/hub`, else
+/// `<home>/.cache/huggingface/hub`. Empty values count as unset.
+pub fn hf_hub_dir_from(var: impl Fn(&str) -> Option<std::ffi::OsString>) -> Option<PathBuf> {
+    let var = |k| var(k).filter(|v| !v.is_empty()).map(PathBuf::from);
+    if let Some(h) = var("HF_HUB_CACHE") {
+        return Some(h);
     }
-    let home = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE"))?;
-    Some(PathBuf::from(home).join(".cache/huggingface/hub"))
+    if let Some(h) = var("HF_HOME") {
+        return Some(h.join("hub"));
+    }
+    let cache = var("XDG_CACHE_HOME").or_else(|| Some(var("HOME").or_else(|| var("USERPROFILE"))?.join(".cache")))?;
+    Some(cache.join("huggingface/hub"))
 }
 
 pub fn sha256_file(path: &Path) -> anyhow::Result<String> {

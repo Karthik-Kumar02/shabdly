@@ -75,7 +75,7 @@ pub fn set_settings(state: State<AppState>, settings: Settings) -> CmdResult<()>
     if let Some(dir) = &state.deps.data_dir {
         store::save(&dir.join("settings.json"), &settings).map_err(msg)?;
     }
-    let (was, now) = (bundled(&state.deps.settings.lock().unwrap()), bundled(&settings));
+    let (was, now) = (state.deps.settings.lock().unwrap().bundled(), settings.bundled());
     *state.deps.settings.lock().unwrap() = settings;
     // The built-in helper holds 3 to 4 GB: free it when the user leaves it, start it on return.
     let engine = state.local.lock().unwrap().clone();
@@ -291,7 +291,7 @@ pub async fn download_whisper(app: AppHandle, state: State<'_, AppState>, name: 
     .await
     .map_err(|e| {
         eprintln!("speech model download: {e:#}");
-        msg(e)
+        download_error(&e, f.size, machine::free_bytes(dest.parent().unwrap_or(&dest)))
     })
 }
 
@@ -303,6 +303,13 @@ pub fn disk_check(bytes_needed: u64, free: u64) -> Result<(), String> {
         0 => Ok(()),
         short => Err(format!("Free up {} GB and try again", short.div_ceil(GB))),
     }
+}
+
+/// The disk filled up during the download: the same plain message as `disk_check`, not the raw
+/// OS error. Anything else as it is.
+fn download_error(e: &anyhow::Error, bytes_needed: u64, free: u64) -> String {
+    let full = e.chain().any(|c| c.downcast_ref::<std::io::Error>().is_some_and(|io| io.kind() == std::io::ErrorKind::StorageFull));
+    full.then(|| disk_check(bytes_needed, free).err()).flatten().unwrap_or_else(|| msg(e))
 }
 
 /// Clears the download flag when the download ends, however it ends.
@@ -365,7 +372,7 @@ async fn download_missing(
     };
     let failed = |e: anyhow::Error| {
         eprintln!("model download: {e:#}");
-        msg(e)
+        download_error(&e, speech + engine, machine::free_bytes(models))
     };
     if let Some(name) = whisper.filter(|_| speech > 0) {
         let f = WHISPER_MODELS.iter().find(|f| f.name == name).ok_or("Unknown speech model")?;
@@ -404,10 +411,6 @@ fn update_settings(state: &AppState, change: impl FnOnce(&mut Settings)) -> CmdR
     }
     *current = s;
     Ok(())
-}
-
-fn bundled(s: &Settings) -> bool {
-    s.provider == ProviderKind::Local && s.local_engine == LocalEngineKind::Bundled
 }
 
 #[derive(Debug, Serialize)]
@@ -450,7 +453,7 @@ pub async fn download_models(app: AppHandle, state: State<'_, AppState>) -> CmdR
     let s = state.deps.settings.lock().unwrap().clone();
     let spec = machine::chosen_spec(&s, &state.engines_dir);
     let fetched = download_missing(&app, &models_dir(&state)?, Some(&s.whisper_model), spec).await?;
-    if fetched && bundled(&s) {
+    if fetched && s.bundled() {
         let local = state.local.lock().unwrap().clone();
         local.retry().await;
     }
@@ -470,7 +473,7 @@ pub async fn set_speed(app: AppHandle, state: State<'_, AppState>, speed: Speed)
     // None: no bundled engine on this macOS, so only the setting is saved.
     if let Some(spec) = machine::chosen_spec(&s, &state.engines_dir) {
         download_missing(&app, &models_dir(&state)?, None, Some(spec)).await?;
-        if bundled(&s) {
+        if s.bundled() {
             swap_engine(&state, spec).await?;
         }
     }
@@ -653,6 +656,13 @@ mod tests {
         assert_eq!(disk_check(5_000_000_000, 5_500_000_000), Err("Free up 1 GB and try again".to_string()));
         assert_eq!(disk_check(5_000_000_000, 7_000_000_000), Ok(()));
         assert_eq!(disk_check(5_000_000_000, 1_000_000_000), Err("Free up 5 GB and try again".to_string()));
+    }
+
+    #[test]
+    fn disk_full_mid_download_says_how_much_to_free() {
+        let full = anyhow::Error::from(std::io::Error::from(std::io::ErrorKind::StorageFull)).context("writing model");
+        assert_eq!(download_error(&full, 5_000_000_000, 0), "Free up 6 GB and try again");
+        assert_eq!(download_error(&anyhow::anyhow!("Download failed"), 5_000_000_000, 0), "Download failed");
     }
 
     #[test]

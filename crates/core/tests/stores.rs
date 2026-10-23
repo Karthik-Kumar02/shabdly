@@ -141,6 +141,9 @@ fn new_install_defaults_to_bundled() {
     let s = Settings::default();
     assert_eq!(s.local_engine, LocalEngineKind::Bundled);
     assert!(s.builtin_offer_done);
+    assert!(s.bundled());
+    assert!(!Settings { local_engine: LocalEngineKind::Ollama, ..s.clone() }.bundled());
+    assert!(!Settings { provider: ProviderKind::Haiku, ..s }.bundled());
 }
 
 #[test]
@@ -167,6 +170,14 @@ fn v2_file_still_parses_with_015_struct() {
     }
     let v2 = serde_json::to_string(&Settings::default()).unwrap();
     serde_json::from_str::<Settings015>(&v2).unwrap();
+}
+
+#[test]
+fn backup_v1_once_skips_a_v2_file() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(dir.path().join("settings.json"), r#"{"provider":"local","local_engine":"bundled"}"#).unwrap();
+    store::backup_v1_once(dir.path());
+    assert!(!dir.path().join("settings.v1.json").exists());
 }
 
 #[test]

@@ -91,6 +91,10 @@ pub fn ollama_body(model: &str, system: &str, text: &str, keep_alive: i64) -> Va
 }
 
 pub fn parse_ollama(v: &Value) -> anyhow::Result<String> {
+    // Cut off at num_predict: use the raw transcript, as parse_openai does.
+    if v.get("done_reason").and_then(Value::as_str) == Some("length") {
+        bail!("cleanup output was cut off");
+    }
     let s = v.pointer("/message/content").and_then(Value::as_str).ok_or_else(|| anyhow!("no message content"))?;
     Ok(s.trim().to_string())
 }

@@ -199,6 +199,12 @@ fn parse_openai_reads_content() {
 }
 
 #[test]
+fn parse_ollama_rejects_length_cutoff() {
+    assert!(parse_ollama(&json!({"done_reason": "length", "message": {"content": "Hi"}})).is_err());
+    assert_eq!(parse_ollama(&json!({"done_reason": "stop", "message": {"content": "Hi."}})).unwrap(), "Hi.");
+}
+
+#[test]
 fn parse_openai_rejects_length_cutoff() {
     let v = json!({"choices": [{"finish_reason": "length", "message": {"content": "  Hi. "}}]});
     assert!(parse_openai(&v).is_err());

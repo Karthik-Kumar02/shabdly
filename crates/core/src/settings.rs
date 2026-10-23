@@ -62,6 +62,13 @@ pub fn default_hotkey() -> &'static str {
     if cfg!(target_os = "windows") { "Ctrl+Win" } else { "Fn" }
 }
 
+impl Settings {
+    /// Local served by the bundled engine (new installs), not by Ollama (0.1.5 upgraders).
+    pub fn bundled(&self) -> bool {
+        self.provider == ProviderKind::Local && self.local_engine == LocalEngineKind::Bundled
+    }
+}
+
 impl Default for Settings {
     fn default() -> Self {
         Settings {

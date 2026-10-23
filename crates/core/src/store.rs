@@ -38,11 +38,17 @@ pub fn load_or_set_aside<T: DeserializeOwned + Default>(path: &Path) -> T {
 }
 
 /// Copy `settings.json` to `settings.v1.json` once, before this version first rewrites it,
-/// so a downgrade to 0.1.5 can restore the original.
+/// so a downgrade to 0.1.5 can restore the original. A file that already has `local_engine` was
+/// written by 0.2.0 (backup deleted, or a fresh 0.2.0 install), so it is not a 0.1.5 original.
 pub fn backup_v1_once(dir: &Path) {
     let backup = dir.join("settings.v1.json");
-    if !backup.exists() {
-        if let Err(e) = std::fs::copy(dir.join("settings.json"), &backup) {
+    let settings = dir.join("settings.json");
+    let v2 = std::fs::read_to_string(&settings)
+        .ok()
+        .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok())
+        .is_some_and(|v| v.get("local_engine").is_some());
+    if !backup.exists() && !v2 {
+        if let Err(e) = std::fs::copy(&settings, &backup) {
             eprintln!("settings backup: {e}");
         }
     }

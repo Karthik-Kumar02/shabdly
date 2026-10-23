@@ -1,4 +1,4 @@
-use shabdly_core::model_store::{ModelState, locate, model_dir, sha256_file};
+use shabdly_core::model_store::{ModelState, hf_hub_dir_from, locate, model_dir, sha256_file};
 use shabdly_core::models::{EngineKind, ModelFile, ModelSpec};
 use shabdly_core::settings::Speed;
 use std::fs;
@@ -201,4 +201,16 @@ fn partial_hf_snapshot_is_ignored() {
         ModelState::Missing { bytes_needed: 11 }
     );
     assert!(!model_dir(&models, &SPEC).join("a.bin").exists());
+}
+
+#[test]
+fn hf_hub_dir_follows_huggingface_order() {
+    let env = |pairs: &'static [(&'static str, &'static str)]| {
+        move |k: &str| pairs.iter().find(|(n, _)| *n == k).map(|(_, v)| v.into())
+    };
+    const ALL: &[(&str, &str)] = &[("HF_HUB_CACHE", "/c"), ("HF_HOME", "/h"), ("XDG_CACHE_HOME", "/x"), ("HOME", "/u")];
+    assert_eq!(hf_hub_dir_from(env(ALL)), Some(PathBuf::from("/c")));
+    assert_eq!(hf_hub_dir_from(env(&ALL[1..])), Some(PathBuf::from("/h/hub")));
+    assert_eq!(hf_hub_dir_from(env(&ALL[2..])), Some(PathBuf::from("/x/huggingface/hub")));
+    assert_eq!(hf_hub_dir_from(env(&[("XDG_CACHE_HOME", ""), ("HOME", "/u")])), Some(PathBuf::from("/u/.cache/huggingface/hub")));
 }
