@@ -170,6 +170,14 @@ fn v2_file_still_parses_with_015_struct() {
 }
 
 #[test]
+fn backup_v1_once_skips_a_v2_file() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(dir.path().join("settings.json"), r#"{"provider":"local","local_engine":"bundled"}"#).unwrap();
+    store::backup_v1_once(dir.path());
+    assert!(!dir.path().join("settings.v1.json").exists());
+}
+
+#[test]
 fn backup_v1_once_copies_only_once() {
     let dir = tempfile::tempdir().unwrap();
     std::fs::write(dir.path().join("settings.json"), "a").unwrap();
