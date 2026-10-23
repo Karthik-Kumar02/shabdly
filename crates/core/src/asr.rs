@@ -4,7 +4,9 @@ use crate::settings::Language;
 use anyhow::Context;
 use std::path::Path;
 use std::sync::Mutex;
-use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters, WhisperState, get_lang_str};
+use whisper_rs::{
+    FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters, WhisperState, WhisperTokenId, get_lang_str,
+};
 
 /// Speech models, pinned to a commit and downloaded like the engine models (resume, retry, sha256).
 pub const WHISPER_MODELS: [ModelFile; 2] = [
@@ -53,6 +55,8 @@ pub struct WhisperAsr {
     /// Language detection only. whisper.cpp keeps the last `audio_ctx` a state ran
     /// with and detection reuses it, so this state is primed once with a short one.
     detect: Mutex<WhisperState>,
+    /// `HINGLISH_PROMPT` tokenized once: whisper-rs leaks the CString of `set_initial_prompt` on every call.
+    prompt_tokens: Vec<WhisperTokenId>,
 }
 
 impl WhisperAsr {
@@ -69,7 +73,8 @@ impl WhisperAsr {
         params.set_max_tokens(1);
         params.set_print_progress(false);
         detect.full(params, &[0.0; 16_000])?;
-        Ok(WhisperAsr { ctx, detect: Mutex::new(detect) })
+        let prompt_tokens = ctx.tokenize(HINGLISH_PROMPT, 1024)?;
+        Ok(WhisperAsr { ctx, detect: Mutex::new(detect), prompt_tokens })
     }
 
     /// Auto mode would otherwise run the full 30 s encoder twice: once to detect, once to transcribe.
@@ -98,9 +103,9 @@ impl Transcriber for WhisperAsr {
         let mut state = self.ctx.create_state()?;
         let mut params = FullParams::new(SamplingStrategy::Greedy { best_of: 1 });
         params.set_language(Some(self.lang_code(samples_16k, lang)));
-        if let Some(prompt) = initial_prompt(lang) {
-            // ponytail: whisper-rs leaks this ~100-byte CString per call; fine for dictation counts.
-            params.set_initial_prompt(prompt);
+        if initial_prompt(lang).is_some() {
+            // Same as `set_initial_prompt`: whisper.cpp tokenizes that into these prompt tokens.
+            params.set_tokens(&self.prompt_tokens);
         }
         params.set_no_timestamps(true);
         params.set_print_progress(false);
