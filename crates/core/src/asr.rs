@@ -47,15 +47,10 @@ pub struct WhisperAsr {
 impl WhisperAsr {
     pub fn load(model_path: &Path) -> anyhow::Result<WhisperAsr> {
         let path = model_path.to_str().context("model path is not UTF-8")?;
-        // Flash attention: about 0.15 to 0.2 s faster per dictation on Apple Silicon.
-        let ctx = match WhisperContext::new_with_params(path, context_params(true)) {
-            Ok(ctx) => ctx,
-            Err(e) => {
-                eprintln!("flash attention unavailable, loading without it: {e}");
-                WhisperContext::new_with_params(path, context_params(false))
-                    .with_context(|| format!("loading Whisper model {path}"))?
-            }
-        };
+        // Flash attention stays off: on the user's real recordings (2026-10-23 release gate) it made
+        // language detection turn a Hindi dictation into English (CER 22 -> 142). `flash_ab` re-checks it.
+        let ctx = WhisperContext::new_with_params(path, context_params(false))
+            .with_context(|| format!("loading Whisper model {path}"))?;
         let mut detect = ctx.create_state()?;
         let mut params = FullParams::new(SamplingStrategy::Greedy { best_of: 1 });
         params.set_language(Some("en"));
