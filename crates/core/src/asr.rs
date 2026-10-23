@@ -30,6 +30,17 @@ pub trait Transcriber: Send + Sync {
 /// full-window detection on English, Hindi and Hinglish clips at a third of the cost.
 const DETECT_AUDIO_CTX: i32 = 500;
 
+/// Code-switched example for the decoder: Hindi in Devanagari, English words in Latin script.
+/// Without it Auto detects `en` on Hinglish dictations (the English share wins) and Whisper
+/// translates the Hindi parts into English before cleanup sees them. With it, both `en` and `hi`
+/// decoding keep each language as spoken; English-only clips are unchanged (2026-10-23, real clips).
+const HINGLISH_PROMPT: &str = "हाँ भाई, मैं कल office आऊँगा. ये meeting कब है? Okay, let's do it.";
+
+/// The decoder prompt for `lang`. English needs none.
+pub fn initial_prompt(lang: Language) -> Option<&'static str> {
+    (lang != Language::English).then_some(HINGLISH_PROMPT)
+}
+
 /// Whisper context options. `flash` turns on whisper.cpp flash attention.
 pub fn context_params(flash: bool) -> WhisperContextParameters<'static> {
     let mut p = WhisperContextParameters::default();
@@ -87,6 +98,10 @@ impl Transcriber for WhisperAsr {
         let mut state = self.ctx.create_state()?;
         let mut params = FullParams::new(SamplingStrategy::Greedy { best_of: 1 });
         params.set_language(Some(self.lang_code(samples_16k, lang)));
+        if let Some(prompt) = initial_prompt(lang) {
+            // ponytail: whisper-rs leaks this ~100-byte CString per call; fine for dictation counts.
+            params.set_initial_prompt(prompt);
+        }
         params.set_no_timestamps(true);
         params.set_print_progress(false);
         params.set_print_realtime(false);
