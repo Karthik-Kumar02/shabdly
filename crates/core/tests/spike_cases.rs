@@ -1,12 +1,12 @@
 //! Live release gate (spec section 6): 15/15 cases pass and at least 14 outputs end in `.`, `?` or `!`.
 //! Default backend is Ollama with gemma4:e4b. Others come from env:
 //! BENCH_BACKEND=ollama|openai, BENCH_URL, BENCH_MODEL, BENCH_TOKEN (openai only).
-//! BENCH_PUNCT_FIX=1 applies `finish_sentence`, as `LocalEngine` does for the fast (E2B) models.
+//! BENCH_PUNCT_FIX=1 applies `finish_sentence_from`, as `LocalEngine` does for the fast (E2B) models.
 //! Run: cargo test --release -p shabdly-core --test spike_cases -- --ignored --nocapture
 mod common;
 use serde::Deserialize;
 use async_trait::async_trait;
-use shabdly_core::pipeline::{clean, finish_sentence};
+use shabdly_core::pipeline::{clean, finish_sentence_from};
 use shabdly_core::providers::{CleanupProvider, OllamaProvider, OpenAiProvider};
 use shabdly_core::settings::Language;
 use std::time::{Duration, Instant};
@@ -30,7 +30,7 @@ impl CleanupProvider for Punctuated {
         self.0.base_timeout()
     }
     async fn clean(&self, system: &str, text: &str) -> anyhow::Result<String> {
-        self.0.clean(system, text).await.map(|t| finish_sentence(&t))
+        self.0.clean(system, text).await.map(|t| finish_sentence_from(&t, text))
     }
 }
 
