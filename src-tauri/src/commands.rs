@@ -16,7 +16,7 @@ use std::time::Duration;
 use tauri::Emitter;
 use shabdly_core::dictionary::Entry;
 use shabdly_core::history::HistoryItem;
-use shabdly_core::learning::{LearnEvent, learn, undo};
+use shabdly_core::learning::{LearnEvent, learn};
 use shabdly_core::settings::Settings;
 use shabdly_core::store;
 use std::sync::atomic::{AtomicBool, AtomicI64};
@@ -154,8 +154,12 @@ pub fn fix_word_cmd(state: State<AppState>, at_ms: i64, wrong: String, right: St
 
 #[tauri::command]
 pub fn undo_learn(state: State<AppState>, event: LearnEvent) {
-    undo(&mut state.deps.dict.lock().unwrap(), &event);
-    state.deps.save_dict();
+    state.deps.undo_learned(&event);
+}
+
+#[tauri::command]
+pub fn recent_learned(state: State<AppState>) -> Vec<LearnEvent> {
+    state.deps.recent_learned()
 }
 
 fn key_entry(provider: &str) -> CmdResult<keyring::Entry> {

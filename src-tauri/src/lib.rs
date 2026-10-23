@@ -124,6 +124,7 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         data_dir: Some(data_dir.clone()),
         poll: Duration::from_millis(250),
         max_observe: Duration::from_secs(60),
+        recent_learned: Default::default(),
     });
 
     // Every event goes to the windows; a recording start also moves the overlay
@@ -252,6 +253,7 @@ pub fn run() {
             commands::clear_history,
             commands::fix_word_cmd,
             commands::undo_learn,
+            commands::recent_learned,
             commands::set_api_key,
             commands::has_api_key,
             commands::reinsert,

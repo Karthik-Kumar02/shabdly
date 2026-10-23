@@ -10,7 +10,7 @@ use shabdly_core::asr::Transcriber;
 use shabdly_core::audio::{rms, to_16k_mono};
 use shabdly_core::dictionary::Dictionary;
 use shabdly_core::history::{History, HistoryItem};
-use shabdly_core::learning::{LearnEvent, learn};
+use shabdly_core::learning::{LearnEvent, learn, undo};
 use shabdly_core::pipeline::clean;
 use shabdly_core::providers::{CleanupProvider, Skip};
 use shabdly_core::settings::Settings;
@@ -41,7 +41,12 @@ pub struct Deps {
     pub data_dir: Option<PathBuf>,
     pub poll: Duration,
     pub max_observe: Duration,
+    /// Words learned this session, oldest first, so the Dictionary tab can undo them after the toast is gone.
+    pub recent_learned: Arc<Mutex<Vec<LearnEvent>>>,
 }
+
+/// How many learned words stay undoable in the Dictionary tab.
+const RECENT_LEARNED: usize = 10;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Outcome {
@@ -65,6 +70,25 @@ impl Deps {
                 eprintln!("saving dictionary: {e:#}");
             }
         }
+    }
+
+    /// Keeps the events the toast shows (not hint-only ones), the last `RECENT_LEARNED`.
+    pub(crate) fn remember_learned(&self, events: &[LearnEvent]) {
+        let mut r = self.recent_learned.lock().unwrap();
+        r.extend(events.iter().filter(|e| !matches!(e, LearnEvent::HintOnly { .. })).cloned());
+        let extra = r.len().saturating_sub(RECENT_LEARNED);
+        r.drain(..extra);
+    }
+
+    /// Newest first.
+    pub(crate) fn recent_learned(&self) -> Vec<LearnEvent> {
+        self.recent_learned.lock().unwrap().iter().rev().cloned().collect()
+    }
+
+    pub(crate) fn undo_learned(&self, event: &LearnEvent) {
+        undo(&mut self.dict.lock().unwrap(), event);
+        self.save_dict();
+        self.recent_learned.lock().unwrap().retain(|e| e != event);
     }
 
     pub(crate) fn save_history(&self) {
@@ -199,6 +223,7 @@ pub async fn learn_after(
             events = learn(&mut deps.dict.lock().unwrap(), inserted, region, now_ms() / 1000);
             if !events.is_empty() {
                 deps.save_dict();
+                deps.remember_learned(&events);
             }
         }
     }
@@ -395,6 +420,7 @@ pub(crate) mod tests {
             data_dir: None,
             poll: Duration::from_millis(5),
             max_observe: Duration::from_secs(2),
+            recent_learned: Default::default(),
         }
     }
 
@@ -452,6 +478,31 @@ pub(crate) mod tests {
         assert_eq!(d.history.lock().unwrap().items[0].cleaned, "my secret note");
         assert!(matches!(p.snapshot_clipboard(), ClipboardSnapshot::Text(t) if t == "my secret note"));
         assert!(p.pastes().is_empty());
+    }
+
+    #[tokio::test]
+    async fn learned_words_stay_undoable() {
+        let p = Arc::new(FakePlatform::new(vec![field("", 1), field("ask kartik now", 1), field("ask kartik now", 1), field("ask Karthik now", 1)]));
+        let d = deps(p.clone(), "ask kartik now", Arc::new(Echo));
+        let (at, id, text) = inserted(&process(&d, speech()).await);
+        let events = learn_after(&d, text, at, id, Arc::new(AtomicBool::new(false)), enter_now()).await;
+        assert_eq!(events.len(), 1);
+        assert_eq!(d.recent_learned(), events);
+
+        d.undo_learned(&events[0]);
+        assert!(d.recent_learned().is_empty());
+        assert!(d.dict.lock().unwrap().get("Karthik").is_none());
+    }
+
+    #[test]
+    fn recent_learned_keeps_the_last_ten_newest_first() {
+        let d = deps(Arc::new(FakePlatform::new(vec![])), "", Arc::new(Echo));
+        let ev = |k: usize| LearnEvent::Added { word: format!("w{k}"), heard: format!("h{k}") };
+        d.remember_learned(&(0..12).map(ev).collect::<Vec<_>>());
+        d.remember_learned(&[LearnEvent::HintOnly { word: "x".into(), heard: "y".into() }]);
+        let recent = d.recent_learned();
+        assert_eq!(recent.len(), 10);
+        assert_eq!((recent[0].clone(), recent[9].clone()), (ev(11), ev(2)));
     }
 
     #[tokio::test]
