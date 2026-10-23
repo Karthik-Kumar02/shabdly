@@ -14,6 +14,11 @@ trap 'rm -rf "$tmp"' EXIT
 curl -fsSL --retry 3 -o "$tmp/m.gguf" "$model_url"
 if command -v sha256sum > /dev/null; then sum=sha256sum; else sum="shasum -a 256"; fi
 echo "$model_sha  $tmp/m.gguf" | $sum -c -
+# Load it from a non-ASCII folder, like a Windows user named Rāhul (llama-server rebuilds argv from
+# GetCommandLineW). curl gets the plain path: Git for Windows' native curl reads argv in the ANSI code page.
+model="$tmp/Rāhul राहुल/m.gguf"
+mkdir "$tmp/Rāhul राहुल"
+mv "$tmp/m.gguf" "$model"
 
 if [ "$(uname)" = Darwin ]; then
   # A missing model folder must give exit code 2: proof the helper launches and macOS does not block it.
@@ -28,7 +33,7 @@ else
   server="$dir/win/llama/llama-server.exe"
 fi
 
-LLAMA_API_KEY=t "$server" -m "$tmp/m.gguf" --host 127.0.0.1 --port 8094 > "$tmp/llama.log" 2>&1 &
+LLAMA_API_KEY=t "$server" -m "$model" --host 127.0.0.1 --port 8094 > "$tmp/llama.log" 2>&1 &
 pid=$!
 trap 'kill $pid 2> /dev/null || true; rm -rf "$tmp"' EXIT
 for _ in $(seq 30); do
