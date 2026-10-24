@@ -1,10 +1,10 @@
 ## Fixes
 
-- **No more duplicate engine.** Switching between Fastest and Best (or turning off the built-in engine) while the engine was still starting could leave a second copy running in the background, using about 2.6 GB of memory. Shabdly now stops it.
-- If your disk fills up during a download, Shabdly says how many GB to free instead of showing a system error.
-- Ollama: a reply cut off at its length limit is no longer typed; your words go in without cleanup instead.
-- Finds models you already downloaded with Hugging Face tools when their cache is in a custom folder (`HF_HUB_CACHE` or `XDG_CACHE_HOME`).
-- Windows: Best quality is offered only when a graphics card is really found.
+- **Windows: the window shows again.** On some computers Shabdly opened a blank window, or none at all. The window now shows and draws its pages.
+- Windows: only one copy of Shabdly runs. Opening it again brings the running copy to the front.
+- **Hinglish stays Hinglish.** With the language set to Auto, mixed Hindi and English speech is no longer turned into English.
+- Fastest keeps the commas and question marks from your speech instead of dropping them.
+- Mac: when Shabdly gives up on a slow cleanup, the built-in engine stops working on it too, so your next dictation is not held up (this could take up to 2 minutes).
 
 ## Download
 

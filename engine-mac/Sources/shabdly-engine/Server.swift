@@ -27,9 +27,14 @@ actor Engine {
     func complete(_ body: [String: Any]) async -> Reply {
         guard let container else { return Reply(status: 503, body: ["error": "model is loading"]) }
         let previous = last
-        let job = Task { await previous.value; return await Engine.generate(container, self.prefix, body) }
+        let job = Task {
+            await previous.value
+            // Abandoned while it waited its turn: do not start it.
+            if Task.isCancelled { return Reply(status: 503, body: ["error": "cancelled"]) }
+            return await Engine.generate(container, self.prefix, body)
+        }
         last = Task { _ = await job.value }
-        return await job.value
+        return await withTaskCancellationHandler { await job.value } onCancel: { job.cancel() }
     }
 
     private static func generate(_ container: ModelContainer, _ prefix: PrefixCache, _ body: [String: Any]) async -> Reply {
@@ -67,14 +72,20 @@ actor Engine {
                 let feed = start == 0 ? input : LMInput(tokens: MLXArray(tokens[start...].map { Int32($0) }))
                 var text = ""
                 var reason = "stop"
-                for await event in try MLXLMCommon.generate(
-                    input: feed, cache: cache, parameters: parameters, context: context) {
+                let iterator = try TokenIterator(input: feed, model: context.model, cache: cache, parameters: parameters)
+                let (stream, task) = generateTask(
+                    promptTokenCount: feed.text.tokens.size, modelConfiguration: context.configuration,
+                    tokenizer: context.tokenizer, iterator: iterator)
+                // A cancelled request ends the stream at once, and the stream then stops the generation.
+                for await event in stream {
                     switch event {
                     case .chunk(let s): text += s
                     case .info(let info): if case .length = info.stopReason { reason = "length" }
                     default: break
                     }
                 }
+                // The next request must not use the model or the cache until this generation has let go.
+                await task.value
                 (prefix.cache, prefix.tokens) = (cache, tokens)
                 return (text, reason)
             }
@@ -128,9 +139,14 @@ struct Server {
                     let parts = lines[0].split(separator: " ")
                     let method = parts.count > 1 ? String(parts[0]) : ""
                     let path = parts.count > 1 ? String(parts[1]) : ""
-                    Task {
+                    let task = Task {
                         let reply = await self.handle(method, path, headers["authorization"], Data(body.prefix(length)))
                         self.send(conn, reply)
+                    }
+                    // Shabdly closes the connection when it stops waiting (timeout, new dictation):
+                    // cancel the request, so its generation stops and the next one is not held up.
+                    conn.receive(minimumIncompleteLength: 1, maximumLength: 1) { _, _, done, error in
+                        if done || error != nil { task.cancel() }
                     }
                     return
                 }

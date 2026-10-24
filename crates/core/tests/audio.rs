@@ -26,6 +26,18 @@ fn rms_of_silence_is_zero() {
     assert!((rms(&[0.5, -0.5]) - 0.5).abs() < 1e-6);
 }
 
+#[test]
+fn whisper_prompt_is_mixed_script_except_for_english() {
+    use shabdly_core::asr::initial_prompt;
+    use shabdly_core::settings::Language;
+    assert_eq!(initial_prompt(Language::English), None);
+    for lang in [Language::Auto, Language::Hinglish, Language::Hindi] {
+        let p = initial_prompt(lang).unwrap();
+        assert!(p.chars().any(|c| ('\u{0900}'..='\u{097F}').contains(&c)), "{lang:?}: no Devanagari");
+        assert!(p.split_whitespace().any(|w| w.chars().all(|c| c.is_ascii_alphabetic())), "{lang:?}: no Latin word");
+    }
+}
+
 /// Needs the Whisper model: SHABDLY_MODEL=~/Downloads/ggml-large-v3-turbo-q8_0.bin
 #[test]
 #[ignore]

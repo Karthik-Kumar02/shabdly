@@ -4,7 +4,9 @@ use crate::settings::Language;
 use anyhow::Context;
 use std::path::Path;
 use std::sync::Mutex;
-use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters, WhisperState, get_lang_str};
+use whisper_rs::{
+    FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters, WhisperState, WhisperTokenId, get_lang_str,
+};
 
 /// Speech models, pinned to a commit and downloaded like the engine models (resume, retry, sha256).
 pub const WHISPER_MODELS: [ModelFile; 2] = [
@@ -30,6 +32,17 @@ pub trait Transcriber: Send + Sync {
 /// full-window detection on English, Hindi and Hinglish clips at a third of the cost.
 const DETECT_AUDIO_CTX: i32 = 500;
 
+/// Code-switched example for the decoder: Hindi in Devanagari, English words in Latin script.
+/// Without it Auto detects `en` on Hinglish dictations (the English share wins) and Whisper
+/// translates the Hindi parts into English before cleanup sees them. With it, both `en` and `hi`
+/// decoding keep each language as spoken; English-only clips are unchanged (2026-10-23, real clips).
+const HINGLISH_PROMPT: &str = "हाँ भाई, मैं कल office आऊँगा. ये meeting कब है? Okay, let's do it.";
+
+/// The decoder prompt for `lang`. English needs none.
+pub fn initial_prompt(lang: Language) -> Option<&'static str> {
+    (lang != Language::English).then_some(HINGLISH_PROMPT)
+}
+
 /// Whisper context options. `flash` turns on whisper.cpp flash attention.
 pub fn context_params(flash: bool) -> WhisperContextParameters<'static> {
     let mut p = WhisperContextParameters::default();
@@ -42,6 +55,8 @@ pub struct WhisperAsr {
     /// Language detection only. whisper.cpp keeps the last `audio_ctx` a state ran
     /// with and detection reuses it, so this state is primed once with a short one.
     detect: Mutex<WhisperState>,
+    /// `HINGLISH_PROMPT` tokenized once: whisper-rs leaks the CString of `set_initial_prompt` on every call.
+    prompt_tokens: Vec<WhisperTokenId>,
 }
 
 impl WhisperAsr {
@@ -58,7 +73,8 @@ impl WhisperAsr {
         params.set_max_tokens(1);
         params.set_print_progress(false);
         detect.full(params, &[0.0; 16_000])?;
-        Ok(WhisperAsr { ctx, detect: Mutex::new(detect) })
+        let prompt_tokens = ctx.tokenize(HINGLISH_PROMPT, 1024)?;
+        Ok(WhisperAsr { ctx, detect: Mutex::new(detect), prompt_tokens })
     }
 
     /// Auto mode would otherwise run the full 30 s encoder twice: once to detect, once to transcribe.
@@ -87,6 +103,10 @@ impl Transcriber for WhisperAsr {
         let mut state = self.ctx.create_state()?;
         let mut params = FullParams::new(SamplingStrategy::Greedy { best_of: 1 });
         params.set_language(Some(self.lang_code(samples_16k, lang)));
+        if initial_prompt(lang).is_some() {
+            // Same as `set_initial_prompt`: whisper.cpp tokenizes that into these prompt tokens.
+            params.set_tokens(&self.prompt_tokens);
+        }
         params.set_no_timestamps(true);
         params.set_print_progress(false);
         params.set_print_realtime(false);

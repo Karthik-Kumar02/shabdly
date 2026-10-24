@@ -49,6 +49,14 @@ mod tests {
         assert_eq!(overlay_position(&mons, (-5.0, -5.0)), Some((1272.0, 1708.0)));
         assert_eq!(overlay_position(&[], (0.0, 0.0)), None);
     }
+
+    #[test]
+    fn windows_are_built_in_setup_after_the_state() {
+        let conf: serde_json::Value = serde_json::from_str(include_str!("../tauri.conf.json")).unwrap();
+        for w in conf["app"]["windows"].as_array().unwrap() {
+            assert_eq!(w["create"], false, "{}", w["label"]);
+        }
+    }
 }
 
 /// Bottom center of the monitor under the cursor (physical pixels), 80 px
@@ -170,6 +178,24 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     app.manage(asr.clone());
     std::thread::spawn(move || asr.preload());
 
+    app.manage(AppState {
+        deps,
+        hotkey: Mutex::new(hotkey),
+        warm,
+        last_hotkey_ms,
+        hotkey_tx: raw_tx,
+        local: slot,
+        engines_dir,
+        downloading: AtomicBool::new(false),
+    });
+
+    // The windows come after the state their pages call into ("create": false in tauri.conf.json).
+    // On Windows, building a webview pumps messages, so the settings page could load and call
+    // needs_setup before AppState existed, and stayed blank.
+    for w in app.config().app.windows.clone() {
+        tauri::WebviewWindowBuilder::from_config(app.handle(), &w)?.build()?;
+    }
+
     if let Some(o) = app.get_webview_window("overlay") {
         let _ = o.set_ignore_cursor_events(true);
         place_overlay(app.handle());
@@ -210,17 +236,9 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     };
     tray.build(app)?;
 
-    app.manage(AppState {
-        deps,
-        hotkey: Mutex::new(hotkey),
-        warm,
-        last_hotkey_ms,
-        hotkey_tx: raw_tx,
-        local: slot,
-        engines_dir,
-        downloading: AtomicBool::new(false),
-    });
-    if first_run {
+    // Windows has no Dock icon to reopen the window and hides new tray icons in the
+    // overflow, so the window shows on every launch there; on macOS only while setup is unfinished.
+    if !cfg!(target_os = "macos") || commands::setup_needed(&data_dir, &settings.lock().unwrap()).is_some() {
         show_main(app.handle());
     }
     Ok(())
@@ -229,6 +247,8 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let app = tauri::Builder::default()
+        // Launching Shabdly again brings up the running copy instead of starting a second one.
+        .plugin(tauri_plugin_single_instance::init(|app, _, _| show_main(app)))
         .plugin(tauri_plugin_opener::init())
         .setup(setup)
         .on_window_event(|w, e| {

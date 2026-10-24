@@ -1,6 +1,6 @@
 [package]
 name = "shabdly"
-version = "0.2.1"
+version = "0.2.2"
 description = "Words that learn you. Private voice dictation."
 authors = ["Sai Karthik Sanjeev Kumar"]
 license = "MIT"
@@ -21,6 +21,7 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 tauri = { version = "2", features = ["macos-private-api", "tray-icon"] }
 tauri-plugin-opener = "2"
+tauri-plugin-single-instance = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 shabdly-core = { path = "../crates/core" }

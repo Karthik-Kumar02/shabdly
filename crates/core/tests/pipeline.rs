@@ -55,6 +55,14 @@ fn prompt_omits_dictionary_line_without_hints() {
 }
 
 #[test]
+fn prompt_keeps_whisper_punctuation() {
+    // "Fix punctuation" made E2B strip Whisper's commas and question marks (12 of 37 kept, 34 with this).
+    for lang in [Language::Auto, Language::English, Language::Hindi, Language::Hinglish] {
+        assert!(system_prompt(lang, &[]).contains("Keep the punctuation already in the text"), "{lang:?}");
+    }
+}
+
+#[test]
 fn prompt_hindi_rule() {
     let p = system_prompt(Language::Hindi, &[]);
     assert!(p.contains("Write Hindi in Devanagari script."));
