@@ -2,7 +2,8 @@
 
 - Open Voozi once with Shabdly closed: settings, learned words, history, models and API keys move over by themselves.
 - Mac: macOS asks once more for Microphone, Accessibility and Input Monitoring, because the app has a new name.
-- Then remove Shabdly: drag Shabdly.app to the Bin on Mac; on Windows, uninstall Shabdly in Settings, Apps. Open Voozi first: Shabdly's uninstaller can delete its data folder, and before the move that folder holds your data.
+- If macOS asks to let Voozi use Shabdly's saved keys, click Always Allow.
+- Then remove Shabdly: drag Shabdly.app to the Trash on Mac; on Windows, uninstall Shabdly in Settings, Apps. Open Voozi first: Shabdly's uninstaller can delete its data folder, and before the move that folder holds your data.
 
 ## Download
 

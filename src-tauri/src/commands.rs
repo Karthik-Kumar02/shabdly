@@ -40,7 +40,7 @@ pub struct AppState {
     pub engines_dir: PathBuf,
     /// Set while a model download (setup or Speed switch) runs.
     pub downloading: AtomicBool,
-    /// This launch moved the old Voozi data folder over: greet once and re-ask permissions.
+    /// This launch moved the old app's data folder over: greet once and re-ask permissions.
     pub renamed: bool,
 }
 
@@ -222,7 +222,7 @@ const OLLAMA_URL: &str = "http://localhost:11434";
 const LOCAL_MODEL: &str = "gemma4:e4b";
 
 /// What setup still has to do: "first_run" (never finished), "renamed" (data just moved over
-/// from Voozi; it also covers a missing speech model), "speech_model" (the selected Whisper
+/// from the old app; it also covers a missing speech model), "speech_model" (the selected Whisper
 /// model is missing), or None.
 pub fn setup_needed(dir: &std::path::Path, settings: &Settings, renamed: bool) -> Option<&'static str> {
     if !dir.join("settings.json").exists() {

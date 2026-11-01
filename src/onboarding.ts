@@ -55,7 +55,7 @@ const welcome: Step = (card, next) => {
 
 const RENAMED_LINE = "Shabdly is now Voozi. Your words and settings came with you."; // old-name-ok
 
-// Shown once after the data folder moved over from Voozi.
+// Shown once after the data folder moved over from the old app.
 const renamed: Step = (card, next) => {
   card.innerHTML = `
     <h2>Welcome to Voozi</h2>
@@ -309,7 +309,7 @@ const practice: Step = async (card, next) => {
 };
 
 // "speech_model": settings exist but the chosen speech model is missing.
-// "renamed": the data just moved over from Voozi; greet, re-ask permissions, check models.
+// "renamed": the data just moved over from the old app; greet, re-ask permissions, check models.
 export function startOnboarding(root: HTMLElement, done: () => void, only?: "speech_model" | "renamed") {
   const steps: Step[] =
     only === "renamed"
