@@ -15,7 +15,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+      # v1: drops caches holding a CPU-native ggml build (see .cargo/config.toml).
       - uses: Swatinem/rust-cache@v2
+        with:
+          prefix-key: v1-rust
       - uses: actions/setup-node@v4
         with:
           node-version: 24
@@ -43,3 +46,5 @@ jobs:
       - if: runner.os == 'Windows'
         shell: bash
         run: scripts/smoke-engines.sh target/release/engines
+      - shell: bash
+        run: scripts/check-portable-ggml.sh

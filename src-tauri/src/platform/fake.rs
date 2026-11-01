@@ -4,12 +4,15 @@ use super::{ClipboardSnapshot, FieldText, PasteOutcome, Platform};
 use std::collections::VecDeque;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::{Duration, Instant};
 
 pub struct FakePlatform {
     fields: Mutex<VecDeque<Option<FieldText>>>,
     pastes: Mutex<Vec<String>>,
     clipboard: Mutex<ClipboardSnapshot>,
     secure: AtomicBool,
+    start: Instant,
+    slept: Mutex<Duration>,
 }
 
 impl FakePlatform {
@@ -19,6 +22,8 @@ impl FakePlatform {
             pastes: Mutex::new(vec![]),
             clipboard: Mutex::new(ClipboardSnapshot::Empty),
             secure: AtomicBool::new(false),
+            start: Instant::now(),
+            slept: Mutex::new(Duration::ZERO),
         }
     }
 
@@ -29,6 +34,11 @@ impl FakePlatform {
 
     pub fn set_secure_input(&self, on: bool) {
         self.secure.store(on, Ordering::SeqCst);
+    }
+
+    /// Virtual time slept so far.
+    pub fn slept(&self) -> Duration {
+        *self.slept.lock().unwrap()
     }
 
     pub fn pastes(&self) -> Vec<String> {
@@ -60,5 +70,11 @@ impl Platform for FakePlatform {
     }
     fn accessibility_trusted(&self, _prompt: bool) -> bool {
         true
+    }
+    fn now(&self) -> Instant {
+        self.start + self.slept()
+    }
+    fn sleep(&self, d: Duration) {
+        *self.slept.lock().unwrap() += d;
     }
 }
