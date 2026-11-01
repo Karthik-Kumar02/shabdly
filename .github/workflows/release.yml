@@ -20,7 +20,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ github.ref_name }}
         run: |
-          gh release create "$TAG" --title "Shabdly $TAG" --notes-file .github/release-notes.md
+          gh release create "$TAG" --title "Voozi $TAG" --notes-file .github/release-notes.md
           echo "id=$(gh release view "$TAG" --json databaseId --jq .databaseId)" >> "$GITHUB_OUTPUT"
 
   build:
@@ -61,12 +61,12 @@ jobs:
       # Accessibility and microphone permissions across updates (ad-hoc builds lose them).
       # Tauri's own APPLE_CERTIFICATE import only accepts Apple-issued names, hence this step.
       # The certificate was made once with /usr/bin/openssl (LibreSSL, whose .p12 `security` can read):
-      #   openssl req -x509 -newkey rsa:2048 -nodes -days 7300 -keyout key.pem -out cert.pem -subj "/CN=Shabdly Self-Signed"
+      #   openssl req -x509 -newkey rsa:2048 -nodes -days 7300 -keyout key.pem -out cert.pem -subj "/CN=Voozi Self-Signed"
       #     -addext "basicConstraints=critical,CA:false" -addext "keyUsage=critical,digitalSignature"
       #     -addext "extendedKeyUsage=critical,codeSigning"
-      #   openssl pkcs12 -export -inkey key.pem -in cert.pem -out shabdly.p12
-      # and stored as secrets MACOS_CERTIFICATE (base64 of shabdly.p12) and MACOS_CERTIFICATE_PASSWORD.
-      # Keep shabdly.p12: a new certificate resets every user's permissions once.
+      #   openssl pkcs12 -export -inkey key.pem -in cert.pem -out voozi.p12
+      # and stored as secrets MACOS_CERTIFICATE (base64 of voozi.p12) and MACOS_CERTIFICATE_PASSWORD.
+      # Keep voozi.p12: a new certificate resets every user's permissions once.
       - if: runner.os == 'macOS'
         env:
           CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
@@ -86,13 +86,13 @@ jobs:
         run: |
           for kind in 'dynamically linked shared library' 'executable'; do
             find src-tauri/engines/mac -type f | while IFS= read -r f; do
-              if file -b "$f" | grep -q "^Mach-O.*$kind"; then codesign --force -s "Shabdly Self-Signed" "$f"; fi
+              if file -b "$f" | grep -q "^Mach-O.*$kind"; then codesign --force -s "Voozi Self-Signed" "$f"; fi
             done
           done
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          APPLE_SIGNING_IDENTITY: Shabdly Self-Signed
+          APPLE_SIGNING_IDENTITY: Voozi Self-Signed
         with:
           releaseId: ${{ needs.create-release.outputs.id }}
           args: --bundles ${{ matrix.bundles }}
@@ -103,7 +103,7 @@ jobs:
         run: |
           mnt=$(mktemp -d)
           hdiutil attach -readonly -nobrowse -mountpoint "$mnt" target/release/bundle/dmg/*.dmg
-          scripts/smoke-engines.sh "$mnt/Shabdly.app/Contents/Resources/engines"
+          scripts/smoke-engines.sh "$mnt/Voozi.app/Contents/Resources/engines"
           hdiutil detach "$mnt"
       - if: runner.os == 'Windows'
         shell: bash

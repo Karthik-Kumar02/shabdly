@@ -1,6 +1,6 @@
-use shabdly_core::dictionary::{Dictionary, Source};
-use shabdly_core::learning::{LearnEvent, diff_candidates, is_common, learn, undo};
-use shabdly_core::swaps::apply_swaps;
+use voozi_core::dictionary::{Dictionary, Source};
+use voozi_core::learning::{LearnEvent, diff_candidates, is_common, learn, undo};
+use voozi_core::swaps::apply_swaps;
 
 #[test]
 fn learns_new_word() {

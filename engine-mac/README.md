@@ -1,4 +1,4 @@
-# shabdly-engine (Mac)
+# voozi-engine (Mac)
 
 Small Swift helper that loads one MLX model and serves Shabdly's cleanup requests on `127.0.0.1`.
 macOS 14 or later, Apple silicon.
@@ -10,13 +10,13 @@ xcodebuild -downloadComponent MetalToolchain   # once per Xcode install, if `met
 scripts/build-engine-mac.sh
 ```
 
-Output: `src-tauri/engines/mac/shabdly-engine` and `mlx-swift_Cmlx.bundle` (holds `default.metallib`).
+Output: `src-tauri/engines/mac/voozi-engine` and `mlx-swift_Cmlx.bundle` (holds `default.metallib`).
 The bundle must stay next to the binary. Plain `swift build` is not enough for shipping: use the script.
 
 ## Run
 
 ```sh
-SHABDLY_ENGINE_TOKEN=<64 hex chars> shabdly-engine --model <model dir> --port <n> --parent-pid <pid>
+VOOZI_ENGINE_TOKEN=<64 hex chars> voozi-engine --model <model dir> --port <n> --parent-pid <pid>
 ```
 
 - `GET /health`: `200 {"status":"ok"}` once the model is loaded, `503` before. No token needed.

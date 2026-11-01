@@ -4,12 +4,12 @@
 set -eu
 root="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$root/engine-mac"
-xcodebuild -scheme shabdly-engine -configuration Release -destination 'platform=macOS,arch=arm64' \
+xcodebuild -scheme voozi-engine -configuration Release -destination 'platform=macOS,arch=arm64' \
   -derivedDataPath "$root/engine-mac/build" -skipPackagePluginValidation -skipMacroValidation build
 products="$root/engine-mac/build/Build/Products/Release"
 out="$root/src-tauri/engines/mac"
 rm -rf "$out" && mkdir -p "$out"
-cp "$products/shabdly-engine" "$out/"
+cp "$products/voozi-engine" "$out/"
 found=0
 for b in "$products"/*.bundle; do
   if find "$b" -name '*.metallib' | grep -q .; then cp -R "$b" "$out/"; found=1; fi

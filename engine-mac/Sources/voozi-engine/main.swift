@@ -1,12 +1,12 @@
-// shabdly-engine: serves one MLX model over local HTTP for Shabdly.
-// Usage: SHABDLY_ENGINE_TOKEN=<hex> shabdly-engine --model <dir> --port <n> --parent-pid <pid>
+// voozi-engine: serves one MLX model over local HTTP for Shabdly.
+// Usage: VOOZI_ENGINE_TOKEN=<hex> voozi-engine --model <dir> --port <n> --parent-pid <pid>
 import Foundation
 import MLXLLM
 import MLXLMCommon
 import Tokenizers
 
 func fail(_ message: String, code: Int32) -> Never {
-    FileHandle.standardError.write(Data("shabdly-engine: \(message)\n".utf8))
+    FileHandle.standardError.write(Data("voozi-engine: \(message)\n".utf8))
     exit(code)
 }
 
@@ -20,8 +20,8 @@ guard let modelDir = args["model"], let port = UInt16(args["port"] ?? ""),
     let parentPid = Int32(args["parent-pid"] ?? "")
 else { fail("usage: --model <dir> --port <n> --parent-pid <pid>", code: 1) }
 // The token comes only from the environment: arguments are visible to other users in `ps`.
-guard let token = ProcessInfo.processInfo.environment["SHABDLY_ENGINE_TOKEN"], !token.isEmpty else {
-    fail("SHABDLY_ENGINE_TOKEN is not set", code: 1)
+guard let token = ProcessInfo.processInfo.environment["VOOZI_ENGINE_TOKEN"], !token.isEmpty else {
+    fail("VOOZI_ENGINE_TOKEN is not set", code: 1)
 }
 
 // Orphan protection: exit when the parent (Shabdly) is gone, so a force-quit does not leave 4 GB behind.

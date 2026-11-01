@@ -1,9 +1,9 @@
 //! Flash attention on vs off: speed and character error rate on real recordings.
-//! SHABDLY_MODEL=<ggml model> BENCH_DIR=<folder with refs.tsv and <id>.wav>
+//! VOOZI_MODEL=<ggml model> BENCH_DIR=<folder with refs.tsv and <id>.wav>
 //! refs.tsv lines: id<TAB>voice-or-note<TAB>reference text
-use shabdly_core::asr::{Transcriber, WhisperAsr, context_params};
-use shabdly_core::audio::to_16k_mono;
-use shabdly_core::settings::Language;
+use voozi_core::asr::{Transcriber, WhisperAsr, context_params};
+use voozi_core::audio::to_16k_mono;
+use voozi_core::settings::Language;
 use std::path::Path;
 use std::time::Instant;
 use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperState, get_lang_str};
@@ -112,7 +112,7 @@ fn cer_ignores_case_punctuation_and_danda() {
 #[test]
 #[ignore]
 fn flash_ab() {
-    let model = std::env::var("SHABDLY_MODEL").expect("set SHABDLY_MODEL");
+    let model = std::env::var("VOOZI_MODEL").expect("set VOOZI_MODEL");
     let dir = std::path::PathBuf::from(std::env::var("BENCH_DIR").expect("set BENCH_DIR"));
     let refs = std::fs::read_to_string(dir.join("refs.tsv")).unwrap();
     let mut off_asr = NoFlash::load(&model);

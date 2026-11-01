@@ -3,7 +3,7 @@
 use crate::settings::Speed;
 
 /// Shabdly's own copies of every catalog file, used when the primary URL fails.
-pub const MIRROR_BASE: &str = "https://huggingface.co/Karthik-Kumar02/shabdly-models/resolve/main";
+pub const MIRROR_BASE: &str = "https://huggingface.co/Karthik-Kumar02/voozi-models/resolve/main";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EngineKind {

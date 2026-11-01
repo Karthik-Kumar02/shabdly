@@ -5,26 +5,26 @@ use crate::engine::EngineSlot;
 use crate::local_engine::EngineStatus;
 use crate::machine;
 use serde::Serialize;
-use shabdly_core::asr::WHISPER_MODELS;
-use shabdly_core::model_store::{self, ModelState};
-use shabdly_core::models::{ModelSpec, best_offered, total_bytes};
-use shabdly_core::settings::{LocalEngineKind, ProviderKind, Speed};
+use voozi_core::asr::WHISPER_MODELS;
+use voozi_core::model_store::{self, ModelState};
+use voozi_core::models::{ModelSpec, best_offered, total_bytes};
+use voozi_core::settings::{LocalEngineKind, ProviderKind, Speed};
 use std::path::{Path, PathBuf};
-use shabdly_core::setup::{self, OllamaStatus};
+use voozi_core::setup::{self, OllamaStatus};
 use std::sync::mpsc::Sender;
 use std::time::Duration;
 use tauri::Emitter;
-use shabdly_core::dictionary::Entry;
-use shabdly_core::history::HistoryItem;
-use shabdly_core::learning::{LearnEvent, learn};
-use shabdly_core::settings::Settings;
-use shabdly_core::store;
+use voozi_core::dictionary::Entry;
+use voozi_core::history::HistoryItem;
+use voozi_core::learning::{LearnEvent, learn};
+use voozi_core::settings::Settings;
+use voozi_core::store;
 use std::sync::atomic::{AtomicBool, AtomicI64};
 use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Manager, State};
 
-pub const KEYRING_SERVICE: &str = "shabdly";
-const KEY_PROVIDERS: [&str; 2] = ["gemini", "anthropic"];
+pub const KEYRING_SERVICE: &str = "voozi";
+pub(crate) const KEY_PROVIDERS: [&str; 2] = ["gemini", "anthropic"];
 
 pub struct AppState {
     pub deps: Arc<Deps>,
@@ -608,7 +608,7 @@ mod tests {
     use super::*;
     use crate::dictation::tests::{Echo, deps};
     use crate::platform::fake::FakePlatform;
-    use shabdly_core::history::HistoryItem;
+    use voozi_core::history::HistoryItem;
     use std::sync::Arc;
 
     #[test]

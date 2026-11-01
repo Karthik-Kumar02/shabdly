@@ -1,6 +1,6 @@
-use shabdly_core::asr::WHISPER_MODELS;
-use shabdly_core::models::{CATALOG, EngineKind, MIRROR_BASE, Os, DEFAULT_SPEED, best_offered, mirror_url, pick};
-use shabdly_core::settings::Speed;
+use voozi_core::asr::WHISPER_MODELS;
+use voozi_core::models::{CATALOG, EngineKind, MIRROR_BASE, Os, DEFAULT_SPEED, best_offered, mirror_url, pick};
+use voozi_core::settings::Speed;
 
 #[test]
 fn fast_is_default_and_ram_gates_best() {

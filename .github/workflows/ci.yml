@@ -40,7 +40,7 @@ jobs:
       - if: runner.os == 'macOS'
         run: |
           npm run tauri build -- --bundles app
-          scripts/smoke-engines.sh target/release/bundle/macos/Shabdly.app/Contents/Resources/engines
+          scripts/smoke-engines.sh target/release/bundle/macos/Voozi.app/Contents/Resources/engines
       - if: runner.os == 'Windows'
         run: npm run tauri build -- --no-bundle
       - if: runner.os == 'Windows'

@@ -1,7 +1,7 @@
 mod common;
 use common::dict;
-use shabdly_core::dictionary::Dictionary;
-use shabdly_core::swaps::apply_swaps;
+use voozi_core::dictionary::Dictionary;
+use voozi_core::swaps::apply_swaps;
 
 #[test]
 fn swaps_whole_words_case_insensitive() {
@@ -10,7 +10,7 @@ fn swaps_whole_words_case_insensitive() {
 
 #[test]
 fn swaps_multi_word_longest_first() {
-    assert_eq!(apply_swaps("Shabd Lee ka feature", &dict()).0, "Shabdly ka feature");
+    assert_eq!(apply_swaps("Voo Zee ka feature", &dict()).0, "Voozi ka feature");
 }
 
 #[test]

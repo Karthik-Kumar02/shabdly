@@ -38,7 +38,7 @@ impl Recorder {
             chunk.extend(samples);
             buf.lock().unwrap().extend_from_slice(&chunk[start..]);
             if last.elapsed() >= LEVEL_EVERY {
-                let _ = level_tx.send(shabdly_core::audio::rms(&chunk));
+                let _ = level_tx.send(voozi_core::audio::rms(&chunk));
                 chunk.clear();
                 last = Instant::now();
             }

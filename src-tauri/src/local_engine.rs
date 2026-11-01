@@ -5,13 +5,13 @@ use crate::machine::run;
 use anyhow::{Context, anyhow, bail};
 use async_trait::async_trait;
 use serde::Serialize;
-use shabdly_core::model_store::model_dir;
-use shabdly_core::models::{EngineKind, ModelSpec};
-use shabdly_core::pipeline::{finish_sentence_from, warm_up};
-use shabdly_core::prompt::system_prompt;
-use shabdly_core::providers::{CleanupProvider, OllamaProvider, OpenAiProvider};
-use shabdly_core::settings::{Language, Speed};
-use shabdly_core::setup::{OllamaStatus, ollama_status};
+use voozi_core::model_store::model_dir;
+use voozi_core::models::{EngineKind, ModelSpec};
+use voozi_core::pipeline::{finish_sentence_from, warm_up};
+use voozi_core::prompt::system_prompt;
+use voozi_core::providers::{CleanupProvider, OllamaProvider, OpenAiProvider};
+use voozi_core::settings::{Language, Speed};
+use voozi_core::setup::{OllamaStatus, ollama_status};
 use std::ffi::OsString;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -496,9 +496,9 @@ pub fn chain(
     if let Some(spec) = spec {
         if spec.engine == EngineKind::Mlx {
             let pid = std::process::id().to_string();
-            let program = engines_dir.join("mac/shabdly-engine");
+            let program = engines_dir.join("mac/voozi-engine");
             let dir = model_dir(&models, spec);
-            c.push(spawn_candidate("mlx", program, dir, &["--parent-pid", &pid], "SHABDLY_ENGINE_TOKEN", app_data, spec));
+            c.push(spawn_candidate("mlx", program, dir, &["--parent-pid", &pid], "VOOZI_ENGINE_TOKEN", app_data, spec));
             if let Some(g) = gguf_fallback {
                 c.push(llama(g, "99"));
             }
@@ -516,7 +516,7 @@ pub fn chain(
 /// Our helper executables, by file name.
 fn is_ours(exe: &str) -> bool {
     let name = Path::new(exe.trim()).file_name().and_then(|n| n.to_str()).unwrap_or("");
-    matches!(name, "shabdly-engine" | "llama-server" | "llama-server.exe")
+    matches!(name, "voozi-engine" | "llama-server" | "llama-server.exe")
 }
 
 /// Orphan fail-safe (llama-server on Mac has no parent watch): kills the PID in `engine.pid` if it
@@ -741,9 +741,9 @@ mod tests {
         let dir = PathBuf::from("/Users/Sai Karthik/कार्तिक/models/x");
         let c = SpawnCandidate {
             name: "mlx",
-            program: PathBuf::from("/Applications/Shabdly.app/engines/mac/shabdly-engine"),
+            program: PathBuf::from("/Applications/Voozi.app/engines/mac/voozi-engine"),
             args: vec!["--parent-pid".into(), "42".into()],
-            token_env: "SHABDLY_ENGINE_TOKEN",
+            token_env: "VOOZI_ENGINE_TOKEN",
             model_dir: dir.clone(),
             data_dir: PathBuf::from("/tmp"),
             punctuate: false,
@@ -755,18 +755,18 @@ mod tests {
         assert!(args.windows(2).any(|w| w[0] == "--port" && w[1] == "5123"));
         assert!(!args.iter().any(|a| a.to_string_lossy().contains("secret-token")));
         let env: Vec<_> = cmd.get_envs().collect();
-        assert!(env.iter().any(|(k, v)| *k == "SHABDLY_ENGINE_TOKEN" && *v == Some("secret-token".as_ref())));
+        assert!(env.iter().any(|(k, v)| *k == "VOOZI_ENGINE_TOKEN" && *v == Some("secret-token".as_ref())));
     }
 
     /// Live: the real Mac helper starts through `chain` and answers with the fix applied.
-    /// Run: SHABDLY_TEST_MLX_MODEL=<E2B model dir> cargo test -p shabdly live_mlx -- --ignored
+    /// Run: VOOZI_TEST_MLX_MODEL=<E2B model dir> cargo test -p voozi live_mlx -- --ignored
     #[cfg(target_os = "macos")]
     #[tokio::test]
     #[ignore]
     async fn live_mlx_helper_starts_and_cleans() {
-        let model = PathBuf::from(std::env::var("SHABDLY_TEST_MLX_MODEL").expect("SHABDLY_TEST_MLX_MODEL"));
+        let model = PathBuf::from(std::env::var("VOOZI_TEST_MLX_MODEL").expect("VOOZI_TEST_MLX_MODEL"));
         let data = tempfile::tempdir().unwrap();
-        let spec = shabdly_core::models::pick(shabdly_core::models::Os::Mac, (14, 0), Speed::Fast).unwrap();
+        let spec = voozi_core::models::pick(voozi_core::models::Os::Mac, (14, 0), Speed::Fast).unwrap();
         std::fs::create_dir_all(data.path().join("models")).unwrap();
         std::os::unix::fs::symlink(&model, model_dir(&data.path().join("models"), spec)).unwrap();
         let engines = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("engines");
@@ -859,7 +859,7 @@ mod tests {
 
     #[test]
     fn only_our_helpers_are_killed() {
-        assert!(is_ours("/Applications/Shabdly.app/Contents/Resources/engines/mac/shabdly-engine"));
+        assert!(is_ours("/Applications/Voozi.app/Contents/Resources/engines/mac/voozi-engine"));
         assert!(is_ours("llama-server.exe"));
         assert!(is_ours("/x/engines/mac/llama/llama-server"));
         assert!(!is_ours("/usr/bin/python3"));

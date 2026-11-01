@@ -1,6 +1,6 @@
 //! Machine probes (spec section 2): RAM, macOS version, free disk, GPU, and the model they choose.
-use shabdly_core::models::{DEFAULT_SPEED, ModelSpec, Os, best_offered, pick};
-use shabdly_core::settings::{Settings, Speed};
+use voozi_core::models::{DEFAULT_SPEED, ModelSpec, Os, best_offered, pick};
+use voozi_core::settings::{Settings, Speed};
 use std::path::Path;
 use std::process::Command;
 
@@ -31,9 +31,9 @@ pub(crate) fn run(program: &Path, args: &[&str]) -> Option<String> {
     Some(text)
 }
 
-/// Installed RAM in GB. `SHABDLY_RAM_GB` overrides the probe; 0 when the probe fails.
+/// Installed RAM in GB. `VOOZI_RAM_GB` overrides the probe; 0 when the probe fails.
 pub fn ram_gb() -> u64 {
-    if let Some(gb) = std::env::var("SHABDLY_RAM_GB").ok().and_then(|v| v.trim().parse().ok()) {
+    if let Some(gb) = std::env::var("VOOZI_RAM_GB").ok().and_then(|v| v.trim().parse().ok()) {
         return gb;
     }
     parse_gb(total_ram_bytes())
@@ -132,8 +132,8 @@ mod tests {
 
     #[test]
     fn ram_override_wins() {
-        // SAFETY: no other test in this crate reads or writes SHABDLY_RAM_GB.
-        unsafe { std::env::set_var("SHABDLY_RAM_GB", "8") };
+        // SAFETY: no other test in this crate reads or writes VOOZI_RAM_GB.
+        unsafe { std::env::set_var("VOOZI_RAM_GB", "8") };
         assert_eq!(ram_gb(), 8);
     }
 }

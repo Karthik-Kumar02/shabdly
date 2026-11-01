@@ -2,13 +2,13 @@ mod common;
 use async_trait::async_trait;
 use common::dict;
 use serde_json::json;
-use shabdly_core::dictionary::Dictionary;
-use shabdly_core::pipeline::{clean, finish_sentence, finish_sentence_from, timeout_for};
-use shabdly_core::prompt::system_prompt;
-use shabdly_core::providers::{
+use voozi_core::dictionary::Dictionary;
+use voozi_core::pipeline::{clean, finish_sentence, finish_sentence_from, timeout_for};
+use voozi_core::prompt::system_prompt;
+use voozi_core::providers::{
     CleanupProvider, OllamaProvider, Skip, ollama_body, openai_body, parse_anthropic, parse_gemini, parse_ollama, parse_openai,
 };
-use shabdly_core::settings::Language;
+use voozi_core::settings::Language;
 use std::time::Duration;
 
 enum Fake {
