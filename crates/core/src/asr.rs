@@ -50,6 +50,32 @@ pub fn context_params(flash: bool) -> WhisperContextParameters<'static> {
     p
 }
 
+/// x86_64 instruction sets the speech engine is built to need; names of the ones this CPU lacks.
+pub fn missing_cpu_features() -> Vec<&'static str> {
+    #[cfg(target_arch = "x86_64")]
+    {
+        let have = [
+            std::is_x86_feature_detected!("avx2"),
+            std::is_x86_feature_detected!("fma"),
+            std::is_x86_feature_detected!("f16c"),
+            std::is_x86_feature_detected!("bmi2"),
+        ];
+        ["avx2", "fma", "f16c", "bmi2"].into_iter().zip(have).filter(|(_, ok)| !ok).map(|(n, _)| n).collect()
+    }
+    #[cfg(not(target_arch = "x86_64"))]
+    Vec::new()
+}
+
+/// The user-facing message for a CPU that lacks `missing` features; `None` when nothing is missing.
+pub fn cpu_error(missing: &[&str]) -> Option<String> {
+    (!missing.is_empty()).then(|| {
+        format!(
+            "This computer's processor is missing instructions that speech recognition needs ({}). It needs an Intel processor from 2013 or later or an AMD processor from 2015 or later.",
+            missing.join(", ")
+        )
+    })
+}
+
 pub struct WhisperAsr {
     ctx: WhisperContext,
     /// Language detection only. whisper.cpp keeps the last `audio_ctx` a state ran
@@ -61,6 +87,9 @@ pub struct WhisperAsr {
 
 impl WhisperAsr {
     pub fn load(model_path: &Path) -> anyhow::Result<WhisperAsr> {
+        if let Some(e) = cpu_error(&missing_cpu_features()) {
+            anyhow::bail!(e)
+        }
         let path = model_path.to_str().context("model path is not UTF-8")?;
         // Flash attention stays off: on the user's real recordings (2026-10-23 release gate) it made
         // language detection turn a Hindi dictation into English (CER 22 -> 142). `flash_ab` re-checks it.
