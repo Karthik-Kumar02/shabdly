@@ -1,5 +1,5 @@
 #![allow(dead_code)]
-use shabdly_core::dictionary::Dictionary;
+use voozi_core::dictionary::Dictionary;
 
 /// The spike's dictionary, shared by the swap, pipeline, and spike tests.
 pub fn dict() -> Dictionary {
@@ -9,7 +9,7 @@ pub fn dict() -> Dictionary {
     d.upsert_manual("REA", v(&["ria", "reya", "रिया"]), None, 1);
     d.upsert_manual("Tauri", v(&["tory"]), None, 1);
     d.upsert_manual("Sanjeev", v(&["संजीव"]), None, 1);
-    d.upsert_manual("Shabdly", v(&["shabd lee", "shabdlee"]), None, 1);
+    d.upsert_manual("Voozi", v(&["voo zee", "voozee"]), None, 1);
     d.upsert_manual("ghee", v(&["gee"]), None, 1);
     d.upsert_manual("addr", vec![], Some("12 Park Street".into()), 1);
     d

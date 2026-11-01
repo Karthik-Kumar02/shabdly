@@ -2,13 +2,13 @@
 //! Default backend is Ollama with gemma4:e4b. Others come from env:
 //! BENCH_BACKEND=ollama|openai, BENCH_URL, BENCH_MODEL, BENCH_TOKEN (openai only).
 //! BENCH_PUNCT_FIX=1 applies `finish_sentence_from`, as `LocalEngine` does for the fast (E2B) models.
-//! Run: cargo test --release -p shabdly-core --test spike_cases -- --ignored --nocapture
+//! Run: cargo test --release -p voozi-core --test spike_cases -- --ignored --nocapture
 mod common;
 use serde::Deserialize;
 use async_trait::async_trait;
-use shabdly_core::pipeline::{clean, finish_sentence_from};
-use shabdly_core::providers::{CleanupProvider, OllamaProvider, OpenAiProvider};
-use shabdly_core::settings::Language;
+use voozi_core::pipeline::{clean, finish_sentence_from};
+use voozi_core::providers::{CleanupProvider, OllamaProvider, OpenAiProvider};
+use voozi_core::settings::Language;
 use std::time::{Duration, Instant};
 
 #[derive(Deserialize)]

@@ -14,6 +14,13 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+      # Rename spec, "Allowed leftovers": the old name may stay only in the move code, the release
+      # notes, docs/superpowers and lines marked old-name-ok.
+      - name: No old app name
+        shell: bash
+        run: |
+          hits=$(git grep -n -i shabdly -- . ':!docs/superpowers/' ':!.github/release-notes.md' ':!src-tauri/src/migrate.rs' | grep -v old-name-ok || true) # old-name-ok
+          if [ -n "$hits" ]; then echo "$hits"; echo "Old app name outside the allow list"; exit 1; fi
       - uses: dtolnay/rust-toolchain@stable
       # v1: drops caches holding a CPU-native ggml build (see .cargo/config.toml).
       - uses: Swatinem/rust-cache@v2
@@ -40,7 +47,7 @@ jobs:
       - if: runner.os == 'macOS'
         run: |
           npm run tauri build -- --bundles app
-          scripts/smoke-engines.sh target/release/bundle/macos/Shabdly.app/Contents/Resources/engines
+          scripts/smoke-engines.sh target/release/bundle/macos/Voozi.app/Contents/Resources/engines
       - if: runner.os == 'Windows'
         run: npm run tauri build -- --no-bundle
       - if: runner.os == 'Windows'

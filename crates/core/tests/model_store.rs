@@ -1,6 +1,6 @@
-use shabdly_core::model_store::{ModelState, hf_hub_dir_from, locate, model_dir, sha256_file};
-use shabdly_core::models::{EngineKind, ModelFile, ModelSpec};
-use shabdly_core::settings::Speed;
+use voozi_core::model_store::{ModelState, hf_hub_dir_from, locate, model_dir, sha256_file};
+use voozi_core::models::{EngineKind, ModelFile, ModelSpec};
+use voozi_core::settings::Speed;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::Duration;

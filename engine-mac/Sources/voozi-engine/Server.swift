@@ -143,7 +143,7 @@ struct Server {
                         let reply = await self.handle(method, path, headers["authorization"], Data(body.prefix(length)))
                         self.send(conn, reply)
                     }
-                    // Shabdly closes the connection when it stops waiting (timeout, new dictation):
+                    // Voozi closes the connection when it stops waiting (timeout, new dictation):
                     // cancel the request, so its generation stops and the next one is not held up.
                     conn.receive(minimumIncompleteLength: 1, maximumLength: 1) { _, _, done, error in
                         if done || error != nil { task.cancel() }

@@ -1,16 +1,15 @@
-## Fixes
+## Shabdly is now Voozi
 
-- **Windows: the window shows again.** On some computers Shabdly opened a blank window, or none at all. The window now shows and draws its pages.
-- Windows: only one copy of Shabdly runs. Opening it again brings the running copy to the front.
-- **Hinglish stays Hinglish.** With the language set to Auto, mixed Hindi and English speech is no longer turned into English.
-- Fastest keeps the commas and question marks from your speech instead of dropping them.
-- Mac: when Shabdly gives up on a slow cleanup, the built-in engine stops working on it too, so your next dictation is not held up (this could take up to 2 minutes).
+- Open Voozi once with Shabdly closed: settings, learned words, history, models and API keys move over by themselves.
+- Mac: macOS asks once more for Microphone, Accessibility and Input Monitoring, because the app has a new name.
+- If macOS asks to let Voozi use Shabdly's saved keys, click Always Allow.
+- Then remove Shabdly: drag Shabdly.app to the Trash on Mac; on Windows, uninstall Shabdly in Settings, Apps. Open Voozi first: Shabdly's uninstaller can delete its data folder, and before the move that folder holds your data.
 
 ## Download
 
 | Your computer | File |
 | --- | --- |
-| Mac with Apple Silicon (M1 or newer) | `Shabdly_..._aarch64.dmg` |
-| Windows 10 or 11 | `Shabdly_..._x64-setup.exe` |
+| Mac with Apple Silicon (M1 or newer) | `Voozi_..._aarch64.dmg` |
+| Windows 10 or 11 | `Voozi_..._x64-setup.exe` |
 
-These builds are not signed with a paid certificate yet, so your computer will warn you the first time. The README explains the one-time steps: [Install](https://github.com/Karthik-Kumar02/shabdly#install).
+These builds are not signed with a paid certificate yet, so your computer will warn you the first time. The README explains the one-time steps: [Install](https://github.com/Karthik-Kumar02/voozi#install).

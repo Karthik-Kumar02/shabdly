@@ -147,7 +147,7 @@ async function renderEngine(box: HTMLElement, s: Settings, status: HTMLElement |
     if (st.reason === "crashed_twice" && best && !oomOffered) {
       oomOffered = true;
       const oom = box.querySelector<HTMLElement>("#oom")!;
-      oom.innerHTML = `Shabdly's engine ran out of memory. Switch to Fastest? <button id="sw">Switch</button><button id="no">Not now</button>`;
+      oom.innerHTML = `Voozi's engine ran out of memory. Switch to Fastest? <button id="sw">Switch</button><button id="no">Not now</button>`;
       oom.hidden = false;
       enter(oom, 2);
       oom.querySelector("#sw")!.addEventListener("click", () => setSpeed("fast"));
@@ -500,7 +500,7 @@ async function showHotkey() {
 export function renderApp() {
   app.innerHTML = `
     <aside class="sidebar" data-tauri-drag-region>
-      <div class="brand" data-tauri-drag-region>Shabdly</div>
+      <div class="brand" data-tauri-drag-region>Voozi</div>
       <nav><span class="indicator" aria-hidden="true"></span>${tabs
         .map(
           (t) =>
@@ -551,9 +551,7 @@ window.addEventListener("focus", () => {
   if (panel && current !== "Settings") flip(panel, () => renderers[current](panel));
 });
 
-invoke<"first_run" | "speech_model" | null>("needs_setup")
-  .then((setup) =>
-    setup ? startOnboarding(app, renderApp, setup === "speech_model" ? "speech_model" : undefined) : renderApp(),
-  )
+invoke<"first_run" | "speech_model" | "renamed" | null>("needs_setup")
+  .then((setup) => (setup ? startOnboarding(app, renderApp, setup === "first_run" ? undefined : setup) : renderApp()))
   // Say why instead of leaving an empty window.
-  .catch((e) => (app.innerHTML = `<p class="startup-error">Shabdly could not start: ${esc(String(e))}</p>`));
+  .catch((e) => (app.innerHTML = `<p class="startup-error">Voozi could not start: ${esc(String(e))}</p>`));

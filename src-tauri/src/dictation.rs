@@ -6,15 +6,15 @@ use crate::hotkey::HotkeyEvent;
 use crate::observe::observe;
 use crate::platform::{PasteOutcome, Platform, insert_into};
 use serde_json::{Value, json};
-use shabdly_core::asr::Transcriber;
-use shabdly_core::audio::{rms, to_16k_mono};
-use shabdly_core::dictionary::Dictionary;
-use shabdly_core::history::{History, HistoryItem};
-use shabdly_core::learning::{LearnEvent, learn, undo};
-use shabdly_core::pipeline::clean;
-use shabdly_core::providers::{CleanupProvider, Skip};
-use shabdly_core::settings::Settings;
-use shabdly_core::store;
+use voozi_core::asr::Transcriber;
+use voozi_core::audio::{rms, to_16k_mono};
+use voozi_core::dictionary::Dictionary;
+use voozi_core::history::{History, HistoryItem};
+use voozi_core::learning::{LearnEvent, learn, undo};
+use voozi_core::pipeline::clean;
+use voozi_core::providers::{CleanupProvider, Skip};
+use voozi_core::settings::Settings;
+use voozi_core::store;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{Receiver, Sender, channel};
@@ -25,9 +25,9 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 const SILENCE_RMS: f32 = 0.002;
 
 pub const MIC_BLOCKED: &str = if cfg!(target_os = "macos") {
-    "Shabdly can't hear your microphone. Allow it in System Settings, Privacy & Security, Microphone."
+    "Voozi can't hear your microphone. Allow it in System Settings, Privacy & Security, Microphone."
 } else {
-    "Shabdly can't hear your microphone. Check that it is connected and allowed in Privacy settings."
+    "Voozi can't hear your microphone. Check that it is connected and allowed in Privacy settings."
 };
 
 pub struct Deps {
@@ -371,8 +371,8 @@ pub(crate) mod tests {
     use crate::local_engine::{Candidate, LocalEngine, Running};
     use crate::platform::{ClipboardSnapshot, FieldText};
     use async_trait::async_trait;
-    use shabdly_core::providers::{OllamaProvider, Skip};
-    use shabdly_core::settings::{Language, LocalEngineKind};
+    use voozi_core::providers::{OllamaProvider, Skip};
+    use voozi_core::settings::{Language, LocalEngineKind};
     use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
     use std::time::Instant;
 

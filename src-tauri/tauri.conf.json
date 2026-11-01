@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Shabdly",
+  "productName": "Voozi",
   "version": "0.2.2",
-  "identifier": "io.github.karthik-kumar02.shabdly",
+  "identifier": "io.github.karthik-kumar02.voozi",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
@@ -15,7 +15,7 @@
       {
         "label": "main",
         "create": false,
-        "title": "Shabdly",
+        "title": "Voozi",
         "width": 720,
         "height": 560,
         "visible": false,
@@ -30,7 +30,7 @@
       {
         "label": "overlay",
         "create": false,
-        "title": "Shabdly overlay",
+        "title": "Voozi overlay",
         "url": "src/overlay.html",
         "width": 240,
         "height": 48,

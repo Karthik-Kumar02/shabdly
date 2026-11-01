@@ -3,9 +3,9 @@
 use crate::commands::api_key;
 use crate::local_engine::{EngineStatus, LocalEngine};
 use async_trait::async_trait;
-use shabdly_core::asr::{Transcriber, WhisperAsr};
-use shabdly_core::providers::{CleanupProvider, GeminiProvider, HaikuProvider, OllamaProvider, Skip};
-use shabdly_core::settings::{Language, ProviderKind, Settings};
+use voozi_core::asr::{Transcriber, WhisperAsr};
+use voozi_core::providers::{CleanupProvider, GeminiProvider, HaikuProvider, OllamaProvider, Skip};
+use voozi_core::settings::{Language, ProviderKind, Settings};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -87,7 +87,7 @@ impl LazyAsr {
         if slot.as_ref().is_none_or(|(n, _)| *n != name) {
             let path = self.models_dir.join(&name);
             if !path.exists() {
-                anyhow::bail!("Speech model not downloaded yet. Open Shabdly to finish setup.");
+                anyhow::bail!("Speech model not downloaded yet. Open Voozi to finish setup.");
             }
             *slot = Some((name, WhisperAsr::load(&path)?));
         }

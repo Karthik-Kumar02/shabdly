@@ -2,7 +2,7 @@
 # CI smoke test (spec section 5): start each helper bundled inside the built app and fail if it does not
 # answer, so a broken or blocked helper never ships.
 # Usage: scripts/smoke-engines.sh <engines dir of the built app>
-#   Mac:     <Shabdly.app>/Contents/Resources/engines (CI mounts the release DMG for this)
+#   Mac:     <Voozi.app>/Contents/Resources/engines (CI mounts the release DMG for this)
 #   Windows: target/release/engines   (run with Git Bash)
 set -eu
 dir=$1
@@ -23,11 +23,11 @@ mv "$tmp/m.gguf" "$model"
 if [ "$(uname)" = Darwin ]; then
   # A missing model folder must give exit code 2: proof the helper launches and macOS does not block it.
   set +e
-  SHABDLY_ENGINE_TOKEN=0000000000000000000000000000000000000000000000000000000000000000 \
-    "$dir/mac/shabdly-engine" --model "$tmp/missing" --port 8095 --parent-pid $$
+  VOOZI_ENGINE_TOKEN=0000000000000000000000000000000000000000000000000000000000000000 \
+    "$dir/mac/voozi-engine" --model "$tmp/missing" --port 8095 --parent-pid $$
   code=$?
   set -e
-  [ "$code" = 2 ] || { echo "shabdly-engine exited $code, expected 2" >&2; exit 1; }
+  [ "$code" = 2 ] || { echo "voozi-engine exited $code, expected 2" >&2; exit 1; }
   server="$dir/mac/llama/llama-server"
 else
   server="$dir/win/llama/llama-server.exe"

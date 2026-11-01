@@ -5,26 +5,26 @@ use crate::engine::EngineSlot;
 use crate::local_engine::EngineStatus;
 use crate::machine;
 use serde::Serialize;
-use shabdly_core::asr::WHISPER_MODELS;
-use shabdly_core::model_store::{self, ModelState};
-use shabdly_core::models::{ModelSpec, best_offered, total_bytes};
-use shabdly_core::settings::{LocalEngineKind, ProviderKind, Speed};
+use voozi_core::asr::WHISPER_MODELS;
+use voozi_core::model_store::{self, ModelState};
+use voozi_core::models::{ModelSpec, best_offered, total_bytes};
+use voozi_core::settings::{LocalEngineKind, ProviderKind, Speed};
 use std::path::{Path, PathBuf};
-use shabdly_core::setup::{self, OllamaStatus};
+use voozi_core::setup::{self, OllamaStatus};
 use std::sync::mpsc::Sender;
 use std::time::Duration;
 use tauri::Emitter;
-use shabdly_core::dictionary::Entry;
-use shabdly_core::history::HistoryItem;
-use shabdly_core::learning::{LearnEvent, learn};
-use shabdly_core::settings::Settings;
-use shabdly_core::store;
+use voozi_core::dictionary::Entry;
+use voozi_core::history::HistoryItem;
+use voozi_core::learning::{LearnEvent, learn};
+use voozi_core::settings::Settings;
+use voozi_core::store;
 use std::sync::atomic::{AtomicBool, AtomicI64};
 use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Manager, State};
 
-pub const KEYRING_SERVICE: &str = "shabdly";
-const KEY_PROVIDERS: [&str; 2] = ["gemini", "anthropic"];
+pub const KEYRING_SERVICE: &str = "voozi";
+pub(crate) const KEY_PROVIDERS: [&str; 2] = ["gemini", "anthropic"];
 
 pub struct AppState {
     pub deps: Arc<Deps>,
@@ -40,6 +40,8 @@ pub struct AppState {
     pub engines_dir: PathBuf,
     /// Set while a model download (setup or Speed switch) runs.
     pub downloading: AtomicBool,
+    /// This launch moved the old app's data folder over: greet once and re-ask permissions.
+    pub renamed: bool,
 }
 
 type CmdResult<T> = Result<T, String>;
@@ -126,7 +128,7 @@ pub fn star_entry(state: State<AppState>, word: String, starred: bool) {
 
 #[tauri::command]
 pub fn import_dictionary(state: State<AppState>, json: String) -> CmdResult<usize> {
-    let added = state.deps.dict.lock().unwrap().import_json(&json).map_err(|e| format!("Not a Shabdly dictionary: {e}"))?;
+    let added = state.deps.dict.lock().unwrap().import_json(&json).map_err(|e| format!("Not a Voozi dictionary: {e}"))?;
     state.deps.save_dict();
     Ok(added)
 }
@@ -193,7 +195,7 @@ pub fn has_api_key(provider: String) -> bool {
     api_key(&provider).is_some()
 }
 
-/// Paste a history item into the app that was in front before Shabdly's window.
+/// Paste a history item into the app that was in front before Voozi's window.
 #[tauri::command]
 pub async fn reinsert(app: AppHandle, state: State<'_, AppState>, text: String) -> CmdResult<()> {
     if let Some(w) = app.get_webview_window("main") {
@@ -219,11 +221,14 @@ pub fn overlay_interactive(app: AppHandle, on: bool) {
 const OLLAMA_URL: &str = "http://localhost:11434";
 const LOCAL_MODEL: &str = "gemma4:e4b";
 
-/// What setup still has to do: "first_run" (never finished) or
-/// "speech_model" (the selected Whisper model is missing), or None.
-pub fn setup_needed(dir: &std::path::Path, settings: &Settings) -> Option<&'static str> {
+/// What setup still has to do: "first_run" (never finished), "renamed" (data just moved over
+/// from the old app; it also covers a missing speech model), "speech_model" (the selected Whisper
+/// model is missing), or None.
+pub fn setup_needed(dir: &std::path::Path, settings: &Settings, renamed: bool) -> Option<&'static str> {
     if !dir.join("settings.json").exists() {
         Some("first_run")
+    } else if renamed {
+        Some("renamed")
     } else if !dir.join("models").join(&settings.whisper_model).exists() {
         Some("speech_model")
     } else {
@@ -234,7 +239,7 @@ pub fn setup_needed(dir: &std::path::Path, settings: &Settings) -> Option<&'stat
 #[tauri::command]
 pub fn needs_setup(state: State<AppState>) -> Option<&'static str> {
     let dir = state.deps.data_dir.as_ref()?;
-    setup_needed(dir, &state.deps.settings.lock().unwrap())
+    setup_needed(dir, &state.deps.settings.lock().unwrap(), state.renamed)
 }
 
 /// macOS "Press Globe key to" setting (AppleFnUsageType): anything but "Do
@@ -394,7 +399,7 @@ async fn swap_engine(state: &AppState, spec: &'static ModelSpec) -> CmdResult<()
     new.ensure().await;
     if new.status() != EngineStatus::Builtin {
         new.stop();
-        return Err("The new model did not start, so Shabdly keeps the current one".into());
+        return Err("The new model did not start, so Voozi keeps the current one".into());
     }
     let old = std::mem::replace(&mut *state.local.lock().unwrap(), new);
     old.stop();
@@ -562,7 +567,7 @@ pub fn open_settings_pane(pane: String) -> CmdResult<()> {
 }
 
 /// Passes hotkey events on to dictation, stamping `seen` for the dictation key only:
-/// Enter and Esc reach Shabdly even when the hotkey itself does not.
+/// Enter and Esc reach Voozi even when the hotkey itself does not.
 pub fn forward_hotkeys(raw: std::sync::mpsc::Receiver<HotkeyEvent>, ctl: Sender<HotkeyEvent>, seen: &AtomicI64) {
     for ev in raw {
         if matches!(ev, HotkeyEvent::Down | HotkeyEvent::Up) {
@@ -589,7 +594,7 @@ pub async fn wait_for_hotkey(last_ms: &AtomicI64, wait: Duration) -> bool {
     }
 }
 
-/// True when the dictation key reached Shabdly within `ms`. Starts the
+/// True when the dictation key reached Voozi within `ms`. Starts the
 /// listener first if it could not start before (permission granted since).
 #[tauri::command]
 pub async fn hotkey_health(state: State<'_, AppState>, ms: u64) -> CmdResult<bool> {
@@ -608,7 +613,7 @@ mod tests {
     use super::*;
     use crate::dictation::tests::{Echo, deps};
     use crate::platform::fake::FakePlatform;
-    use shabdly_core::history::HistoryItem;
+    use voozi_core::history::HistoryItem;
     use std::sync::Arc;
 
     #[test]
@@ -634,12 +639,26 @@ mod tests {
     fn setup_needed_when_settings_or_speech_model_missing() {
         let dir = tempfile::tempdir().unwrap();
         let s = Settings::default();
-        assert_eq!(setup_needed(dir.path(), &s), Some("first_run"));
+        assert_eq!(setup_needed(dir.path(), &s, false), Some("first_run"));
         std::fs::write(dir.path().join("settings.json"), "{}").unwrap();
-        assert_eq!(setup_needed(dir.path(), &s), Some("speech_model"));
+        assert_eq!(setup_needed(dir.path(), &s, false), Some("speech_model"));
         std::fs::create_dir_all(dir.path().join("models")).unwrap();
         std::fs::write(dir.path().join("models").join(&s.whisper_model), "x").unwrap();
-        assert_eq!(setup_needed(dir.path(), &s), None);
+        assert_eq!(setup_needed(dir.path(), &s, false), None);
+    }
+
+    #[test]
+    fn setup_needed_renamed_beats_speech_model() {
+        let dir = tempfile::tempdir().unwrap();
+        let s = Settings::default();
+        assert_eq!(setup_needed(dir.path(), &s, true), Some("first_run"));
+        std::fs::write(dir.path().join("settings.json"), "{}").unwrap();
+        assert_eq!(setup_needed(dir.path(), &s, true), Some("renamed"));
+        assert_eq!(setup_needed(dir.path(), &s, false), Some("speech_model"));
+        std::fs::create_dir_all(dir.path().join("models")).unwrap();
+        std::fs::write(dir.path().join("models").join(&s.whisper_model), "x").unwrap();
+        assert_eq!(setup_needed(dir.path(), &s, true), Some("renamed"));
+        assert_eq!(setup_needed(dir.path(), &s, false), None);
     }
 
     #[test]

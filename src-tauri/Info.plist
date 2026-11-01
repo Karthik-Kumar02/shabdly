@@ -3,6 +3,6 @@
 <plist version="1.0">
 <dict>
   <key>NSMicrophoneUsageDescription</key>
-  <string>Shabdly listens only while you hold your dictation key.</string>
+  <string>Voozi listens only while you hold your dictation key.</string>
 </dict>
 </plist>

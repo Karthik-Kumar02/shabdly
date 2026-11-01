@@ -1,4 +1,4 @@
-use shabdly_core::audio::{rms, to_16k_mono};
+use voozi_core::audio::{rms, to_16k_mono};
 
 #[test]
 fn stereo_48k_to_16k_mono_length() {
@@ -28,8 +28,8 @@ fn rms_of_silence_is_zero() {
 
 #[test]
 fn whisper_prompt_is_mixed_script_except_for_english() {
-    use shabdly_core::asr::initial_prompt;
-    use shabdly_core::settings::Language;
+    use voozi_core::asr::initial_prompt;
+    use voozi_core::settings::Language;
     assert_eq!(initial_prompt(Language::English), None);
     for lang in [Language::Auto, Language::Hinglish, Language::Hindi] {
         let p = initial_prompt(lang).unwrap();
@@ -40,7 +40,7 @@ fn whisper_prompt_is_mixed_script_except_for_english() {
 
 #[test]
 fn missing_cpu_features_names_each_gap() {
-    use shabdly_core::asr::cpu_error;
+    use voozi_core::asr::cpu_error;
     assert_eq!(cpu_error(&[]), None);
     let msg = cpu_error(&["avx2", "fma"]).unwrap();
     assert!(msg.contains("avx2, fma"), "{msg}");
@@ -50,16 +50,16 @@ fn missing_cpu_features_names_each_gap() {
 #[test]
 fn build_machine_has_every_cpu_feature() {
     // CI runners and every Apple Silicon Mac meet the floor; this proves the probe runs.
-    assert!(shabdly_core::asr::missing_cpu_features().is_empty());
+    assert!(voozi_core::asr::missing_cpu_features().is_empty());
 }
 
-/// Needs the Whisper model: SHABDLY_MODEL=~/Downloads/ggml-large-v3-turbo-q8_0.bin
+/// Needs the Whisper model: VOOZI_MODEL=~/Downloads/ggml-large-v3-turbo-q8_0.bin
 #[test]
 #[ignore]
 fn whisper_transcribes_fixture() {
-    use shabdly_core::asr::{Transcriber, WhisperAsr};
-    use shabdly_core::settings::Language;
-    let model = std::env::var("SHABDLY_MODEL").expect("set SHABDLY_MODEL");
+    use voozi_core::asr::{Transcriber, WhisperAsr};
+    use voozi_core::settings::Language;
+    let model = std::env::var("VOOZI_MODEL").expect("set VOOZI_MODEL");
     let asr = WhisperAsr::load(std::path::Path::new(&model)).unwrap();
     let mut wav = hound::WavReader::open(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/hello.wav")).unwrap();
     let spec = wav.spec();

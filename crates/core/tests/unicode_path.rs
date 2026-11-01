@@ -1,8 +1,8 @@
 //! A Windows user folder like `C:\Users\Rāhul` puts every model under a non-ASCII path. whisper.cpp
 //! gets that path as UTF-8 and (MSVC build) widens it before opening, so the real model must load.
-//! Windows CI runs this. Elsewhere: cargo test -p shabdly-core --test unicode_path -- --ignored
-use shabdly_core::asr::WhisperAsr;
-use shabdly_core::setup::download_file;
+//! Windows CI runs this. Elsewhere: cargo test -p voozi-core --test unicode_path -- --ignored
+use voozi_core::asr::WhisperAsr;
+use voozi_core::setup::download_file;
 use std::time::Duration;
 
 // ggerganov/whisper.cpp at 5359861c739e955e79d9a303bcbc70fb988958b1: the smallest multilingual model.

@@ -9,7 +9,7 @@
   {"raw": "क्या तुमने वो PDF भेज दी संजीव को?", "must_contain": ["PDF", "Sanjeev"], "must_contain_ci": ["bhej"]},
   {"raw": "let's meet at 5, no wait, 6 pm at the usual place", "must_contain": ["6"], "must_not_words": ["5"]},
   {"raw": "the food was बहुत अच्छा honestly", "must_contain_ci": ["food", "bahut", "honestly"]},
-  {"raw": "shabd lee का dictionary feature मुझे बहुत पसंद है", "must_contain": ["Shabdly"], "must_contain_ci": ["dictionary"]},
+  {"raw": "voo zee का dictionary feature मुझे बहुत पसंद है", "must_contain": ["Voozi"], "must_contain_ci": ["dictionary"]},
   {"raw": "मुझे लगता है कि हमें ये feature next week तक finish कर लेना चाहिए, वरना client नाराज़ हो जाएगा", "must_contain_ci": ["feature", "next week", "client"]},
   {"raw": "chai peete hain?", "must_contain_ci": ["chai peete hain"]},
   {"raw": "kal interview hai, nervous ho raha hoon", "must_contain_ci": ["interview", "nervous"]},

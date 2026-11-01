@@ -2,7 +2,7 @@
 import PackageDescription
 
 let package = Package(
-    name: "shabdly-engine",
+    name: "voozi-engine",
     platforms: [.macOS(.v14)],
     dependencies: [
         .package(url: "https://github.com/ml-explore/mlx-swift-lm", exact: "3.32.3"),
@@ -10,7 +10,7 @@ let package = Package(
     ],
     targets: [
         .executableTarget(
-            name: "shabdly-engine",
+            name: "voozi-engine",
             dependencies: [
                 .product(name: "MLXLLM", package: "mlx-swift-lm"),
                 .product(name: "MLXLMCommon", package: "mlx-swift-lm"),

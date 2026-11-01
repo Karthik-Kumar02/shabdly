@@ -1,7 +1,7 @@
-use shabdly_core::model_store::{ModelState, locate, sha256_file};
-use shabdly_core::models::{EngineKind, ModelFile, ModelSpec};
-use shabdly_core::settings::Speed;
-use shabdly_core::setup::{OllamaStatus, download_file, download_model, parse_pull_line, parse_tags};
+use voozi_core::model_store::{ModelState, locate, sha256_file};
+use voozi_core::models::{EngineKind, ModelFile, ModelSpec};
+use voozi_core::settings::Speed;
+use voozi_core::setup::{OllamaStatus, download_file, download_model, parse_pull_line, parse_tags};
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
