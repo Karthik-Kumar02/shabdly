@@ -1,5 +1,7 @@
 //! OS adapters behind one trait, plus the insertion logic they share (spec s3).
 
+use std::time::{Duration, Instant};
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FieldText {
     pub value: String,
@@ -38,6 +40,13 @@ pub trait Platform: Send + Sync {
     /// Put `text` on the clipboard and send the OS paste shortcut.
     fn paste(&self, text: &str) -> PasteOutcome;
     fn accessibility_trusted(&self, prompt: bool) -> bool;
+    /// Wall clock and sleep, here so tests can run on a virtual clock.
+    fn now(&self) -> Instant {
+        Instant::now()
+    }
+    fn sleep(&self, d: Duration) {
+        std::thread::sleep(d)
+    }
 }
 
 pub mod fake;
@@ -56,8 +65,6 @@ pub fn current() -> std::sync::Arc<dyn Platform> {
     return std::sync::Arc::new(fake::FakePlatform::new(vec![None]));
 }
 
-use std::time::{Duration, Instant};
-
 /// First look at the field after sending the paste shortcut.
 const PASTE_SETTLE: Duration = Duration::from_millis(150);
 const PASTE_POLL: Duration = Duration::from_millis(50);
@@ -68,8 +75,8 @@ const PASTE_MAX: Duration = Duration::from_secs(1);
 /// Wait until the pasted text shows up in the field, so the clipboard is not
 /// restored before a slow app has read it (it could paste the old clipboard).
 fn wait_for_paste(platform: &dyn Platform, text: &str) {
-    let start = Instant::now();
-    std::thread::sleep(PASTE_SETTLE);
+    let start = platform.now();
+    platform.sleep(PASTE_SETTLE);
     let mut readable = false;
     loop {
         if let Some(f) = platform.focused_field() {
@@ -78,11 +85,11 @@ fn wait_for_paste(platform: &dyn Platform, text: &str) {
             }
             readable |= !f.value.is_empty();
         }
-        let waited = start.elapsed();
+        let waited = platform.now() - start;
         if waited >= PASTE_MAX || (!readable && waited >= PASTE_UNREADABLE) {
             return;
         }
-        std::thread::sleep(PASTE_POLL);
+        platform.sleep(PASTE_POLL);
     }
 }
 
@@ -193,13 +200,11 @@ mod tests {
 
     #[test]
     fn insert_waits_for_paste_to_land_before_restoring() {
-        // The field shows the text on the third look: restore right after, well under the cap.
+        // The field shows the text on the third look: settle 150 ms, then two 50 ms polls.
         let p = FakePlatform::new(vec![field("", false), field("", false), field("", false), field("Hello.", false)]);
         p.restore_clipboard(ClipboardSnapshot::Text("old".into()));
-        let t = Instant::now();
         insert(&p, "Hello.");
-        assert!(t.elapsed() < std::time::Duration::from_millis(450), "{:?}", t.elapsed());
-        assert!(t.elapsed() >= std::time::Duration::from_millis(150));
+        assert_eq!(p.slept(), Duration::from_millis(250));
         assert_eq!(clip_text(&p).as_deref(), Some("old"));
         // Restored only after the read that showed the pasted text.
         assert_eq!(p.focused_field().map(|f| f.value).as_deref(), Some("Hello."));
@@ -209,10 +214,8 @@ mod tests {
     fn insert_into_unreadable_field_waits_half_a_second() {
         let p = FakePlatform::new(vec![field("", false)]);
         p.restore_clipboard(ClipboardSnapshot::Empty);
-        let t = Instant::now();
         insert(&p, "Hello.");
-        assert!(t.elapsed() >= std::time::Duration::from_millis(500), "{:?}", t.elapsed());
-        assert!(t.elapsed() < std::time::Duration::from_millis(900), "{:?}", t.elapsed());
+        assert_eq!(p.slept(), Duration::from_millis(500));
         assert!(matches!(p.snapshot_clipboard(), ClipboardSnapshot::Empty), "empty clipboard restored as empty");
     }
 
