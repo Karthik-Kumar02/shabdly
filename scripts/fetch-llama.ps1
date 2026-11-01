@@ -32,6 +32,10 @@ Copy-Item $server.FullName $out
 Get-ChildItem (Join-Path $server.DirectoryName '*.dll') |
     Where-Object { $_.Name -notlike 'llama-*-impl.dll' -or $_.Name -eq 'llama-server-impl.dll' } |
     Copy-Item -Destination $out
+# ggml picks the best ggml-cpu-*.dll for this CPU at start-up, so several variants must ship.
+$cpu = @(Get-ChildItem $out -Filter 'ggml-cpu*.dll')
+$cpu | ForEach-Object { Write-Output $_.Name }
+if ($cpu.Count -lt 2) { throw "only one CPU backend in $name: llama-server may crash on older CPUs" }
 Copy-Item (Join-Path $server.DirectoryName 'LICENSE*') $out
 # The DLLs link the MSVC runtime, which a clean Windows may lack: ship it app-local (Microsoft allows this).
 foreach ($dll in 'msvcp140.dll', 'vcruntime140.dll', 'vcruntime140_1.dll') {
