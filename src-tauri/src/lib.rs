@@ -6,6 +6,7 @@ pub mod gesture;
 pub mod hotkey;
 pub mod local_engine;
 pub mod machine;
+pub mod migrate;
 pub mod observe;
 pub mod platform;
 
