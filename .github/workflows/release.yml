@@ -57,7 +57,7 @@ jobs:
         run: scripts/fetch-llama.sh
       - if: runner.os == 'Windows'
         run: ./scripts/fetch-llama.ps1
-      # Sign with one fixed self-signed certificate, so macOS keeps Shabdly's
+      # Sign with one fixed self-signed certificate, so macOS keeps Voozi's
       # Accessibility and microphone permissions across updates (ad-hoc builds lose them).
       # Tauri's own APPLE_CERTIFICATE import only accepts Apple-issued names, hence this step.
       # The certificate was made once with /usr/bin/openssl (LibreSSL, whose .p12 `security` can read):

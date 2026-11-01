@@ -78,7 +78,7 @@ pub fn free_bytes(dir: &Path) -> u64 {
 }
 
 /// Mac: always (Metal). Windows: the bundled llama-server lists a Vulkan device. Probed once:
-/// starting llama-server takes a moment and the answer does not change while Shabdly runs.
+/// starting llama-server takes a moment and the answer does not change while Voozi runs.
 pub fn has_gpu(engines_dir: &Path) -> bool {
     if cfg!(target_os = "macos") {
         return true;

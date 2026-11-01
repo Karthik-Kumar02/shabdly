@@ -1,6 +1,6 @@
-//! Finding and verifying cleanup models (spec section 3): Shabdly's own folder first, then
+//! Finding and verifying cleanup models (spec section 3): Voozi's own folder first, then
 //! the Hugging Face cache, checked by size and sha256. A verified cache copy is cloned in so
-//! clearing the cache never breaks Shabdly.
+//! clearing the cache never breaks Voozi.
 use crate::models::{ModelFile, ModelSpec};
 use anyhow::Context;
 use sha2::{Digest, Sha256};

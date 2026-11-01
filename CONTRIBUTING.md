@@ -1,10 +1,10 @@
-# Contributing to Shabdly
+# Contributing to Voozi
 
 Thanks for helping. Bug reports, fixes, and new dictionary or language ideas are all welcome.
 
 ## Report a bug
 
-Open an [issue](https://github.com/Karthik-Kumar02/shabdly/issues) with:
+Open an [issue](https://github.com/Karthik-Kumar02/voozi/issues) with:
 
 1. Your operating system and version.
 2. What you did, what you expected, and what happened.

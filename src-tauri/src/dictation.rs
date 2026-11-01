@@ -25,9 +25,9 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 const SILENCE_RMS: f32 = 0.002;
 
 pub const MIC_BLOCKED: &str = if cfg!(target_os = "macos") {
-    "Shabdly can't hear your microphone. Allow it in System Settings, Privacy & Security, Microphone."
+    "Voozi can't hear your microphone. Allow it in System Settings, Privacy & Security, Microphone."
 } else {
-    "Shabdly can't hear your microphone. Check that it is connected and allowed in Privacy settings."
+    "Voozi can't hear your microphone. Check that it is connected and allowed in Privacy settings."
 };
 
 pub struct Deps {

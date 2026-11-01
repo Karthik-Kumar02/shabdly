@@ -1,8 +1,10 @@
 <p align="center">
-  <img src="src-tauri/icons/icon-1024.png" width="128" alt="Shabdly logo">
+  <img src="src-tauri/icons/icon-1024.png" width="128" alt="Voozi logo">
 </p>
 
-<h1 align="center">Shabdly</h1>
+<h1 align="center">Voozi</h1>
+
+Voozi was called Shabdly before 1.0.0. Opening Voozi moves your Shabdly settings, words and keys over. <!-- old-name-ok -->
 
 <p align="center"><strong>Words that learn you.</strong></p>
 
@@ -12,12 +14,12 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Karthik-Kumar02/shabdly/releases/latest"><img src="https://img.shields.io/badge/Download-macOS%20(Apple%20Silicon)-1f1d1a?style=for-the-badge&logo=apple" alt="Download for macOS"></a>
-  <a href="https://github.com/Karthik-Kumar02/shabdly/releases/latest"><img src="https://img.shields.io/badge/Download-Windows-1f1d1a?style=for-the-badge&logo=windows" alt="Download for Windows"></a>
+  <a href="https://github.com/Karthik-Kumar02/voozi/releases/latest"><img src="https://img.shields.io/badge/Download-macOS%20(Apple%20Silicon)-1f1d1a?style=for-the-badge&logo=apple" alt="Download for macOS"></a>
+  <a href="https://github.com/Karthik-Kumar02/voozi/releases/latest"><img src="https://img.shields.io/badge/Download-Windows-1f1d1a?style=for-the-badge&logo=windows" alt="Download for Windows"></a>
 </p>
 
 <p align="center">
-  <a href="https://github.com/Karthik-Kumar02/shabdly/actions/workflows/ci.yml"><img src="https://github.com/Karthik-Kumar02/shabdly/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/Karthik-Kumar02/voozi/actions/workflows/ci.yml"><img src="https://github.com/Karthik-Kumar02/voozi/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-c9a45c" alt="MIT license"></a>
 </p>
 
@@ -26,16 +28,16 @@
 ## How it works
 
 1. **Hold your dictation key** (Fn on Mac, Ctrl+Win on Windows) and talk.
-2. **Let go.** Shabdly turns your speech into clean, punctuated text and types it where your cursor is: email, chat, docs, anywhere.
-3. **Fix a word once.** Shabdly notices your correction and gets it right next time.
+2. **Let go.** Voozi turns your speech into clean, punctuated text and types it where your cursor is: email, chat, docs, anywhere.
+3. **Fix a word once.** Voozi notices your correction and gets it right next time.
 
 Everything runs on your own computer by default. No account, no subscription, no server.
 
 ## Features
 
 **A dictionary that learns you**
-- Correct a word after dictating ("Kartik" to "Karthik"), press Return, and Shabdly learns it. A small "Learned" note appears with an Undo button.
-- Common words need the same fix twice before Shabdly swaps them, so "their" never quietly turns into "there".
+- Correct a word after dictating ("Kartik" to "Karthik"), press Return, and Voozi learns it. A small "Learned" note appears with an Undo button.
+- Common words need the same fix twice before Voozi swaps them, so "their" never quietly turns into "there".
 - Add words yourself, star the important ones, and import or export your dictionary as JSON.
 - Shortcuts: say "addr" and get your full address (any word can expand to any text).
 
@@ -43,12 +45,12 @@ Everything runs on your own computer by default. No account, no subscription, no
 - **Auto** (default): English stays English, and any Hindi is written in Roman script, the way you would text it: "main kal aaunga".
 - **Hinglish**, **Hindi** (Devanagari), and **English** modes when you want one fixed style.
 - Filler words ("um", "uh") are removed, and self-corrections are applied: "5, no wait, 6" becomes "6".
-- English words stay English. Shabdly never translates.
+- English words stay English. Voozi never translates.
 
 **Private by default**
 - Speech recognition (Whisper) and cleanup (a small built-in model) both run on your computer. Nothing else to install.
 - Prefer the cloud? Switch to Gemini (free tier or paid) or Claude Haiku in Settings.
-- If cleanup is slow or unavailable, Shabdly still types your words and tells you "Cleanup skipped". Nothing is lost.
+- If cleanup is slow or unavailable, Voozi still types your words and tells you "Cleanup skipped". Nothing is lost.
 
 **Made for real work**
 - Hold to talk, or double-tap the key to keep recording hands-free until you tap again. Esc cancels.
@@ -61,42 +63,42 @@ Everything runs on your own computer by default. No account, no subscription, no
 
 ### Mac (Apple Silicon: M1 or newer)
 
-1. Download the `.dmg` from the [latest release](https://github.com/Karthik-Kumar02/shabdly/releases/latest).
-2. Open **Terminal** and run this, so macOS lets you open it. (Shabdly is not yet signed with a paid Apple certificate, so macOS blocks it otherwise.) Run it again after each new download.
+1. Download the `.dmg` from the [latest release](https://github.com/Karthik-Kumar02/voozi/releases/latest).
+2. Open **Terminal** and run this, so macOS lets you open it. (Voozi is not yet signed with a paid Apple certificate, so macOS blocks it otherwise.) Run it again after each new download.
 
    ```bash
-   xattr -d com.apple.quarantine ~/Downloads/Shabdly_*.dmg
+   xattr -d com.apple.quarantine ~/Downloads/Voozi_*.dmg
    ```
 
-3. Open the `.dmg` and drag **Shabdly** into **Applications**.
-4. Open Shabdly. macOS does not ask for these permissions, so turn them on yourself: in **System Settings, Privacy & Security**, switch Shabdly on under both **Device Control** and **Data Access**. Without them it cannot paste your words. (On older macOS versions, the switch is under **Accessibility**.)
-5. Follow the setup in Shabdly. One click downloads the speech and cleanup models (about 4 GB, one time).
+3. Open the `.dmg` and drag **Voozi** into **Applications**.
+4. Open Voozi. macOS does not ask for these permissions, so turn them on yourself: in **System Settings, Privacy & Security**, switch Voozi on under both **Device Control** and **Data Access**. Without them it cannot paste your words. (On older macOS versions, the switch is under **Accessibility**.)
+5. Follow the setup in Voozi. One click downloads the speech and cleanup models (about 4 GB, one time).
 
 On macOS 13.2 or earlier the built-in cleanup engine cannot run: install [Ollama](https://ollama.com/download), or choose a cloud engine.
 
-Updating from 0.1.3 or earlier: macOS forgets these permissions once. If pasting stops, remove Shabdly from **Device Control** and **Data Access** with the minus button, then add it again. Later updates keep them.
+Updating from 0.1.3 or earlier: macOS forgets these permissions once. If pasting stops, remove Voozi from **Device Control** and **Data Access** with the minus button, then add it again. Later updates keep them.
 
 On an Intel Mac, [build from source](#build-from-source).
 
 ### Windows 10 or 11
 
-1. Download the `-setup.exe` from the [latest release](https://github.com/Karthik-Kumar02/shabdly/releases/latest) and run it.
-2. If Windows SmartScreen appears, click **More info**, then **Run anyway**. (Shabdly is not yet signed with a paid certificate.)
-3. Open Shabdly and follow the setup. One click downloads the speech and cleanup models (about 4 GB, one time).
+1. Download the `-setup.exe` from the [latest release](https://github.com/Karthik-Kumar02/voozi/releases/latest) and run it.
+2. If Windows SmartScreen appears, click **More info**, then **Run anyway**. (Voozi is not yet signed with a paid certificate.)
+3. Open Voozi and follow the setup. One click downloads the speech and cleanup models (about 4 GB, one time).
 
-Windows support is new and has been tested by the automated build, not yet by hand on many machines. Please [report anything odd](https://github.com/Karthik-Kumar02/shabdly/issues).
+Windows support is new and has been tested by the automated build, not yet by hand on many machines. Please [report anything odd](https://github.com/Karthik-Kumar02/voozi/issues).
 
 ## First run
 
-Shabdly walks you through setup in a few minutes:
+Voozi walks you through setup in a few minutes:
 
-1. **Welcome.** What Shabdly does, and that it stays on your computer.
-2. **Microphone.** Allow access. Shabdly listens only while you hold your key.
-3. **Typing into other apps** (Mac only). Turn Shabdly on under **Accessibility** (so it can type) and **Input Monitoring** (so it can see your key).
+1. **Welcome.** What Voozi does, and that it stays on your computer.
+2. **Microphone.** Allow access. Voozi listens only while you hold your key.
+3. **Typing into other apps** (Mac only). Turn Voozi on under **Accessibility** (so it can type) and **Input Monitoring** (so it can see your key).
 4. **Download.** One click downloads the speech model and the built-in cleanup model (about 4 GB, one time). The download resumes if your connection drops. Models you already have in your Hugging Face cache are reused. Prefer Ollama, Gemini, or Claude Haiku? Choose **Advanced**.
 5. **Try it.** Pick your key and language, then hold the key and say hello.
 
-## Using Shabdly
+## Using Voozi
 
 | To do this | Do this |
 | --- | --- |
@@ -104,7 +106,7 @@ Shabdly walks you through setup in a few minutes:
 | Dictate hands-free | Double-tap the key, speak, tap once to finish |
 | Cancel | Press Esc while recording |
 | Teach a word | Fix it right after dictating, then press Return |
-| Open settings | Click the Shabdly icon in the menu bar or tray, or press Cmd+, on Mac |
+| Open settings | Click the Voozi icon in the menu bar or tray, or press Cmd+, on Mac |
 
 Recordings shorter than 0.3 seconds are ignored, and recording stops on its own after 6 minutes.
 
@@ -129,30 +131,30 @@ Recordings shorter than 0.3 seconds are ignored, and recording stops on its own 
 ## Troubleshooting
 
 **Nothing happens when I hold the key.**
-On Mac, open **System Settings, Privacy & Security, Input Monitoring** and make sure Shabdly is on. Then quit and reopen Shabdly. You can also pick a different key in Settings.
+On Mac, open **System Settings, Privacy & Security, Input Monitoring** and make sure Voozi is on. Then quit and reopen Voozi. You can also pick a different key in Settings.
 
 **Pressing Fn opens the emoji picker or switches my keyboard.**
-macOS uses the Fn (Globe) key too. In **System Settings, Keyboard**, set **Press Globe key to** to **Do Nothing**. Shabdly shows this tip when it detects the clash.
+macOS uses the Fn (Globe) key too. In **System Settings, Keyboard**, set **Press Globe key to** to **Do Nothing**. Voozi shows this tip when it detects the clash.
 
 **The text is copied but not typed in.**
-On Mac, turn Shabdly on under **System Settings, Privacy & Security, Accessibility**. If you were in a password field, that is on purpose: paste it yourself.
+On Mac, turn Voozi on under **System Settings, Privacy & Security, Accessibility**. If you were in a password field, that is on purpose: paste it yourself.
 
-**It says "Shabdly can't hear your microphone".**
+**It says "Voozi can't hear your microphone".**
 Allow the microphone under **System Settings, Privacy & Security, Microphone** (Mac) or **Settings, Privacy, Microphone** (Windows).
 
 **It says "Cleanup skipped".**
-The cleanup engine did not answer in time, so Shabdly typed your words without cleanup. Open Settings: the line under the cleanup engine says whether the built-in engine is running, with a **Retry** button. With Ollama, check that it is running; with a cloud engine, check that your API key is saved.
+The cleanup engine did not answer in time, so Voozi typed your words without cleanup. Open Settings: the line under the cleanup engine says whether the built-in engine is running, with a **Retry** button. With Ollama, check that it is running; with a cloud engine, check that your API key is saved.
 
 **It did not learn my correction.**
-Shabdly learns when you fix a word in the same text box right after dictating, then press Return, click into another box, or wait a minute. Changes of more than 4 words are skipped, common words need the same fix twice, and a few apps (like Terminal) do not let Shabdly read their text.
+Voozi learns when you fix a word in the same text box right after dictating, then press Return, click into another box, or wait a minute. Changes of more than 4 words are skipped, common words need the same fix twice, and a few apps (like Terminal) do not let Voozi read their text.
 
 ## Build from source
 
 You need [Rust](https://rustup.rs), [Node.js](https://nodejs.org) 20 or newer, and [CMake](https://cmake.org). On Windows you also need the Visual Studio C++ build tools (and LLVM, if the build asks for libclang).
 
 ```bash
-git clone https://github.com/Karthik-Kumar02/shabdly.git
-cd shabdly
+git clone https://github.com/Karthik-Kumar02/voozi.git
+cd voozi
 npm install
 scripts/fetch-llama.sh   # Mac: builds the MLX helper, fetches llama-server (Windows: scripts/fetch-llama.ps1)
 npm run tauri build
@@ -160,11 +162,11 @@ npm run tauri build
 
 The finished app is in `target/release/bundle/`. For development with live reload, run `npm run tauri dev`.
 
-Run the tests with `cargo test --workspace`. `cargo test --release -p shabdly-core --test spike_cases -- --ignored --nocapture` checks a cleanup engine against real English, Hindi, and Hinglish samples (Ollama by default; see the file for the built-in engines).
+Run the tests with `cargo test --workspace`. `cargo test --release -p voozi-core --test spike_cases -- --ignored --nocapture` checks a cleanup engine against real English, Hindi, and Hinglish samples (Ollama by default; see the file for the built-in engines).
 
 ## How it is built
 
-- `crates/core`: the heart of Shabdly. Dictionary, learning, the cleanup pipeline, and speech recognition, with no operating-system code, so it can later power iOS and Android apps too.
+- `crates/core`: the heart of Voozi. Dictionary, learning, the cleanup pipeline, and speech recognition, with no operating-system code, so it can later power iOS and Android apps too.
 - `src-tauri`: the desktop app, built with [Tauri 2](https://tauri.app). Hotkey, overlay, typing into other apps, settings.
 - `src`: the interface, plain TypeScript and CSS.
 

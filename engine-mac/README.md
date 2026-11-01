@@ -1,6 +1,6 @@
 # voozi-engine (Mac)
 
-Small Swift helper that loads one MLX model and serves Shabdly's cleanup requests on `127.0.0.1`.
+Small Swift helper that loads one MLX model and serves Voozi's cleanup requests on `127.0.0.1`.
 macOS 14 or later, Apple silicon.
 
 ## Build

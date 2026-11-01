@@ -40,7 +40,7 @@ pub struct AppState {
     pub engines_dir: PathBuf,
     /// Set while a model download (setup or Speed switch) runs.
     pub downloading: AtomicBool,
-    /// This launch moved the old Shabdly data folder over: greet once and re-ask permissions.
+    /// This launch moved the old Voozi data folder over: greet once and re-ask permissions.
     pub renamed: bool,
 }
 
@@ -128,7 +128,7 @@ pub fn star_entry(state: State<AppState>, word: String, starred: bool) {
 
 #[tauri::command]
 pub fn import_dictionary(state: State<AppState>, json: String) -> CmdResult<usize> {
-    let added = state.deps.dict.lock().unwrap().import_json(&json).map_err(|e| format!("Not a Shabdly dictionary: {e}"))?;
+    let added = state.deps.dict.lock().unwrap().import_json(&json).map_err(|e| format!("Not a Voozi dictionary: {e}"))?;
     state.deps.save_dict();
     Ok(added)
 }
@@ -195,7 +195,7 @@ pub fn has_api_key(provider: String) -> bool {
     api_key(&provider).is_some()
 }
 
-/// Paste a history item into the app that was in front before Shabdly's window.
+/// Paste a history item into the app that was in front before Voozi's window.
 #[tauri::command]
 pub async fn reinsert(app: AppHandle, state: State<'_, AppState>, text: String) -> CmdResult<()> {
     if let Some(w) = app.get_webview_window("main") {
@@ -222,7 +222,7 @@ const OLLAMA_URL: &str = "http://localhost:11434";
 const LOCAL_MODEL: &str = "gemma4:e4b";
 
 /// What setup still has to do: "first_run" (never finished), "renamed" (data just moved over
-/// from Shabdly; it also covers a missing speech model), "speech_model" (the selected Whisper
+/// from Voozi; it also covers a missing speech model), "speech_model" (the selected Whisper
 /// model is missing), or None.
 pub fn setup_needed(dir: &std::path::Path, settings: &Settings, renamed: bool) -> Option<&'static str> {
     if !dir.join("settings.json").exists() {
@@ -399,7 +399,7 @@ async fn swap_engine(state: &AppState, spec: &'static ModelSpec) -> CmdResult<()
     new.ensure().await;
     if new.status() != EngineStatus::Builtin {
         new.stop();
-        return Err("The new model did not start, so Shabdly keeps the current one".into());
+        return Err("The new model did not start, so Voozi keeps the current one".into());
     }
     let old = std::mem::replace(&mut *state.local.lock().unwrap(), new);
     old.stop();
@@ -567,7 +567,7 @@ pub fn open_settings_pane(pane: String) -> CmdResult<()> {
 }
 
 /// Passes hotkey events on to dictation, stamping `seen` for the dictation key only:
-/// Enter and Esc reach Shabdly even when the hotkey itself does not.
+/// Enter and Esc reach Voozi even when the hotkey itself does not.
 pub fn forward_hotkeys(raw: std::sync::mpsc::Receiver<HotkeyEvent>, ctl: Sender<HotkeyEvent>, seen: &AtomicI64) {
     for ev in raw {
         if matches!(ev, HotkeyEvent::Down | HotkeyEvent::Up) {
@@ -594,7 +594,7 @@ pub async fn wait_for_hotkey(last_ms: &AtomicI64, wait: Duration) -> bool {
     }
 }
 
-/// True when the dictation key reached Shabdly within `ms`. Starts the
+/// True when the dictation key reached Voozi within `ms`. Starts the
 /// listener first if it could not start before (permission granted since).
 #[tauri::command]
 pub async fn hotkey_health(state: State<'_, AppState>, ms: u64) -> CmdResult<bool> {

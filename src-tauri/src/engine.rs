@@ -87,7 +87,7 @@ impl LazyAsr {
         if slot.as_ref().is_none_or(|(n, _)| *n != name) {
             let path = self.models_dir.join(&name);
             if !path.exists() {
-                anyhow::bail!("Speech model not downloaded yet. Open Shabdly to finish setup.");
+                anyhow::bail!("Speech model not downloaded yet. Open Voozi to finish setup.");
             }
             *slot = Some((name, WhisperAsr::load(&path)?));
         }

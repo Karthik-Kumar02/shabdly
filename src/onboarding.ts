@@ -46,8 +46,8 @@ export function progressBar(card: HTMLElement, kind: Progress["kind"]) {
 
 const welcome: Step = (card, next) => {
   card.innerHTML = `
-    <h2>Welcome to Shabdly</h2>
-    <p>Hold a key, speak in English, Hindi or Hinglish, and clean text appears in whatever app you are typing in. Shabdly learns your words from your corrections.</p>
+    <h2>Welcome to Voozi</h2>
+    <p>Hold a key, speak in English, Hindi or Hinglish, and clean text appears in whatever app you are typing in. Voozi learns your words from your corrections.</p>
     <p>It runs on this computer by default. No account, and nothing leaves your machine.</p>
     <button class="primary" id="go">Get started</button>`;
   card.querySelector("#go")!.addEventListener("click", next);
@@ -55,7 +55,7 @@ const welcome: Step = (card, next) => {
 
 const RENAMED_LINE = "Shabdly is now Voozi. Your words and settings came with you."; // old-name-ok
 
-// Shown once after the data folder moved over from Shabdly.
+// Shown once after the data folder moved over from Voozi.
 const renamed: Step = (card, next) => {
   card.innerHTML = `
     <h2>Welcome to Voozi</h2>
@@ -67,7 +67,7 @@ const renamed: Step = (card, next) => {
 const microphone: Step = (card, next) => {
   card.innerHTML = `
     <h2>Microphone</h2>
-    <p>Shabdly listens only while you hold your dictation key.</p>
+    <p>Voozi listens only while you hold your dictation key.</p>
     <button class="primary" id="mic">Allow microphone</button>
     <p class="status" id="st"></p>`;
   card.querySelector("#mic")!.addEventListener("click", async () => {
@@ -75,8 +75,8 @@ const microphone: Step = (card, next) => {
     const st = card.querySelector<HTMLElement>("#st")!;
     st.className = "status bad";
     st.innerHTML = isMac
-      ? `Shabdly can't hear the microphone yet. Click Allow if macOS asks, then click Allow microphone again. Still nothing? <button id="pane">Open Microphone settings</button>`
-      : `Shabdly can't hear a microphone. Check that one is connected and allowed. <button id="pane">Open Microphone settings</button>`;
+      ? `Voozi can't hear the microphone yet. Click Allow if macOS asks, then click Allow microphone again. Still nothing? <button id="pane">Open Microphone settings</button>`
+      : `Voozi can't hear a microphone. Check that one is connected and allowed. <button id="pane">Open Microphone settings</button>`;
     card.querySelector("#pane")?.addEventListener("click", () => invoke("open_settings_pane", { pane: "microphone" }));
   });
 };
@@ -84,8 +84,8 @@ const microphone: Step = (card, next) => {
 const accessibility: Step = async (card, next) => {
   card.innerHTML = `
     <h2>Typing into other apps</h2>
-    <p>Lets Shabdly type into other apps and learn from your corrections.</p>
-    <p class="muted">macOS asks for two switches: <strong>Accessibility</strong> (to type) and <strong>Input Monitoring</strong> (to see your dictation key). Turn Shabdly on in both.</p>
+    <p>Lets Voozi type into other apps and learn from your corrections.</p>
+    <p class="muted">macOS asks for two switches: <strong>Accessibility</strong> (to type) and <strong>Input Monitoring</strong> (to see your dictation key). Turn Voozi on in both.</p>
     <div class="row">
       <button class="primary" id="ax">Allow Accessibility</button>
       <button id="im">Open Input Monitoring</button>
@@ -126,7 +126,7 @@ const advanced: Step = async (card, done) => {
   if (status === "no_model") {
     card.innerHTML = `
       <h2>Cleanup engine</h2>
-      <p>Ollama is installed. Shabdly needs its cleanup model, gemma4:e4b (about 10 GB, one time).</p>
+      <p>Ollama is installed. Voozi needs its cleanup model, gemma4:e4b (about 10 GB, one time).</p>
       <button class="primary" id="pull">Download the model</button>
       <p class="status" id="st"></p>`;
     card.querySelector("#pull")!.addEventListener("click", async (ev) => {
@@ -189,7 +189,7 @@ const whisper: Step = async (card, next) => {
   if (await invoke<boolean>("whisper_ready", { name: s.whisper_model })) return next();
   card.innerHTML = `
     <h2>Speech model</h2>
-    <p>Shabdly turns speech into text on this computer. It needs a speech model (about 0.9 GB, one time).</p>
+    <p>Voozi turns speech into text on this computer. It needs a speech model (about 0.9 GB, one time).</p>
     <button class="primary" id="dl">Download</button>
     <p class="status" id="st"></p>`;
   card.querySelector("#dl")!.addEventListener("click", async (ev) => {
@@ -231,7 +231,7 @@ const download: Step = async (card, next) => {
   }
   card.innerHTML = `
     <h2>Download</h2>
-    <p>Shabdly needs two models to work offline (${gb(m.bytes_needed)} GB, one time).</p>
+    <p>Voozi needs two models to work offline (${gb(m.bytes_needed)} GB, one time).</p>
     <button class="primary" id="dl">Download</button>
     <p class="status" id="st"></p>
     <button class="link" id="adv">Advanced: use Ollama or a cloud engine</button>`;
@@ -289,7 +289,7 @@ const practice: Step = async (card, next) => {
     if (await invoke<boolean>("hotkey_health", { ms: 10000 })) return;
     if (!card.isConnected) return;
     health.className = "status bad";
-    health.innerHTML = `Shabdly can't see your hotkey.
+    health.innerHTML = `Voozi can't see your hotkey.
       ${isMac ? `<button id="pane">Open Input Monitoring</button>` : ""} <button id="recheck">Check again</button> Or pick another key above.`;
     card.querySelector("#pane")?.addEventListener("click", () => invoke("open_settings_pane", { pane: "input_monitoring" }));
     card.querySelector("#recheck")!.addEventListener("click", watch);
@@ -309,7 +309,7 @@ const practice: Step = async (card, next) => {
 };
 
 // "speech_model": settings exist but the chosen speech model is missing.
-// "renamed": the data just moved over from Shabdly; greet, re-ask permissions, check models.
+// "renamed": the data just moved over from Voozi; greet, re-ask permissions, check models.
 export function startOnboarding(root: HTMLElement, done: () => void, only?: "speech_model" | "renamed") {
   const steps: Step[] =
     only === "renamed"
@@ -322,7 +322,7 @@ export function startOnboarding(root: HTMLElement, done: () => void, only?: "spe
     if (i >= steps.length) return done();
     const dots = steps.map((_, k) => `<i class="${k < i ? "on" : k === i ? "on cur" : ""}"></i>`).join("");
     root.innerHTML = `<div class="onboard" data-tauri-drag-region><div class="onboard-inner">
-      <header><div class="brand">Shabdly</div><span class="tagline">Words that learn you.</span></header>
+      <header><div class="brand">Voozi</div><span class="tagline">Words that learn you.</span></header>
       <div class="card" id="card"></div>
       <p class="steps"><span class="stepdots" aria-hidden="true">${dots}</span>Step ${i + 1} of ${steps.length}</p></div></div>`;
     const card = document.getElementById("card")!;

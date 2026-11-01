@@ -108,7 +108,7 @@ pub fn show_main(app: &AppHandle) {
 
 fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let data_dir = app.path().app_data_dir()?;
-    // First thing, before anything creates files in the new folder: bring Shabdly's data over.
+    // First thing, before anything creates files in the new folder: bring Voozi's data over.
     let renamed = migrate::move_old_data(&data_dir);
     std::fs::create_dir_all(data_dir.join("models"))?;
     let first_run = !data_dir.join("settings.json").exists();
@@ -222,10 +222,10 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         });
     }
 
-    let open = MenuItem::with_id(app, "open", "Open Shabdly", true, None::<&str>)?;
-    let quit = MenuItem::with_id(app, "quit", "Quit Shabdly", true, None::<&str>)?;
+    let open = MenuItem::with_id(app, "open", "Open Voozi", true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "quit", "Quit Voozi", true, None::<&str>)?;
     let menu = Menu::with_items(app, &[&open, &quit])?;
-    let tray = TrayIconBuilder::new().menu(&menu).tooltip("Shabdly").on_menu_event(|app, e| match e.id.as_ref() {
+    let tray = TrayIconBuilder::new().menu(&menu).tooltip("Voozi").on_menu_event(|app, e| match e.id.as_ref() {
         "open" => show_main(app),
         "quit" => app.exit(0),
         _ => {}
@@ -251,12 +251,12 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let app = tauri::Builder::default()
-        // Launching Shabdly again brings up the running copy instead of starting a second one.
+        // Launching Voozi again brings up the running copy instead of starting a second one.
         .plugin(tauri_plugin_single_instance::init(|app, _, _| show_main(app)))
         .plugin(tauri_plugin_opener::init())
         .setup(setup)
         .on_window_event(|w, e| {
-            // Closing the settings window only hides it; Shabdly keeps running in the tray.
+            // Closing the settings window only hides it; Voozi keeps running in the tray.
             if let WindowEvent::CloseRequested { api, .. } = e {
                 if w.label() == "main" {
                     api.prevent_close();
@@ -302,7 +302,7 @@ pub fn run() {
             commands::dismiss_builtin_offer,
         ])
         .build(tauri::generate_context!())
-        .expect("error while building Shabdly");
+        .expect("error while building Voozi");
     app.run(|app, event| {
         // Clicking the Dock icon brings the settings window back.
         #[cfg(target_os = "macos")]

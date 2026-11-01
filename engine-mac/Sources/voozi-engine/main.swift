@@ -1,4 +1,4 @@
-// voozi-engine: serves one MLX model over local HTTP for Shabdly.
+// voozi-engine: serves one MLX model over local HTTP for Voozi.
 // Usage: VOOZI_ENGINE_TOKEN=<hex> voozi-engine --model <dir> --port <n> --parent-pid <pid>
 import Foundation
 import MLXLLM
@@ -24,7 +24,7 @@ guard let token = ProcessInfo.processInfo.environment["VOOZI_ENGINE_TOKEN"], !to
     fail("VOOZI_ENGINE_TOKEN is not set", code: 1)
 }
 
-// Orphan protection: exit when the parent (Shabdly) is gone, so a force-quit does not leave 4 GB behind.
+// Orphan protection: exit when the parent (Voozi) is gone, so a force-quit does not leave 4 GB behind.
 let parentWatch = DispatchSource.makeTimerSource(queue: .global())
 parentWatch.schedule(deadline: .now() + 1, repeating: 1)
 parentWatch.setEventHandler { if kill(parentPid, 0) != 0 { exit(0) } }

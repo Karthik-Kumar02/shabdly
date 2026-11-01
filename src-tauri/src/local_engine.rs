@@ -99,7 +99,7 @@ impl Drop for KillOnDrop {
     }
 }
 
-/// Windows: the helper dies with Shabdly, even on a force-quit (spec R3).
+/// Windows: the helper dies with Voozi, even on a force-quit (spec R3).
 #[cfg(windows)]
 fn contain(child: &Child) {
     use std::os::windows::io::AsRawHandle;
@@ -108,7 +108,7 @@ fn contain(child: &Child) {
         JobObjectExtendedLimitInformation, SetInformationJobObject,
     };
     // SAFETY: plain Win32 calls on a live process handle. The job handle is never closed on
-    // purpose: Windows closes it when Shabdly exits, which kills the helper.
+    // purpose: Windows closes it when Voozi exits, which kills the helper.
     unsafe {
         let job = CreateJobObjectW(std::ptr::null(), std::ptr::null());
         if job.is_null() {
