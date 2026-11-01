@@ -8,10 +8,16 @@ use voozi_core::store::{move_old_data_once, Move};
 pub const OLD_ID: &str = "io.github.karthik-kumar02.shabdly";
 pub const OLD_KEYRING_SERVICE: &str = "shabdly";
 
-/// True when a `ps -axo comm=` or `tasklist /FO CSV /NH` listing has the old app's process.
+/// True when a `ps -xo comm=` or `tasklist /FO CSV /NH` listing has the old app's process.
 fn lists_old_app(process_list: &str) -> bool {
     process_list.lines().any(|line| {
-        let first = line.split(',').next().unwrap_or("").trim().trim_matches('"');
+        // tasklist CSV lines start with a quote; ps paths may contain commas.
+        let line = line.trim();
+        let first = if line.starts_with('"') {
+            line.split(',').next().unwrap_or("").trim_matches('"')
+        } else {
+            line
+        };
         let name = first.rsplit(['/', '\\']).next().unwrap_or("");
         name.eq_ignore_ascii_case("shabdly") || name.eq_ignore_ascii_case("shabdly.exe")
     })
@@ -19,7 +25,7 @@ fn lists_old_app(process_list: &str) -> bool {
 
 fn old_app_running() -> bool {
     #[cfg(target_os = "macos")]
-    let out = run(Path::new("/bin/ps"), &["-axo", "comm="]);
+    let out = run(Path::new("/bin/ps"), &["-xo", "comm="]);
     #[cfg(windows)]
     let out = run(
         Path::new("tasklist"),
@@ -88,7 +94,11 @@ pub fn move_old_data(data_dir: &Path) -> bool {
             std::process::exit(0)
         }
         Move::Failed(e) => {
-            alert(&format!("Quit Shabdly, then open Voozi again.\n\n{e}"));
+            alert(&format!(
+                "Voozi could not move {} to {}:\n{e}\n\nQuit Shabdly, or empty the second folder.",
+                old.display(),
+                data_dir.display()
+            ));
             std::process::exit(0)
         }
     }
@@ -101,6 +111,7 @@ mod tests {
     #[test]
     fn lists_old_app_on_mac_and_windows() {
         assert!(lists_old_app("/usr/sbin/cfprefsd\n/Applications/Shabdly.app/Contents/MacOS/shabdly\n"));
+        assert!(lists_old_app("/Users/a,b/Shabdly.app/Contents/MacOS/shabdly\n"));
         assert!(lists_old_app("\"shabdly.exe\",\"4242\",\"Console\",\"1\",\"80,000 K\"\r\n"));
         assert!(lists_old_app("\"Shabdly.exe\",\"4242\",\"Console\",\"1\",\"80,000 K\"\r\n"));
     }

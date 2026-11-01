@@ -309,11 +309,11 @@ const practice: Step = async (card, next) => {
 };
 
 // "speech_model": settings exist but the chosen speech model is missing.
-// "renamed": the data just moved over from Shabdly; greet and re-ask permissions.
+// "renamed": the data just moved over from Shabdly; greet, re-ask permissions, check models.
 export function startOnboarding(root: HTMLElement, done: () => void, only?: "speech_model" | "renamed") {
   const steps: Step[] =
     only === "renamed"
-      ? [renamed, microphone, ...(isMac ? [accessibility] : [])]
+      ? [renamed, microphone, ...(isMac ? [accessibility] : []), download]
       : only
         ? [download]
         : [welcome, microphone, ...(isMac ? [accessibility] : []), download, practice];

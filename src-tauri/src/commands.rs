@@ -221,15 +221,16 @@ pub fn overlay_interactive(app: AppHandle, on: bool) {
 const OLLAMA_URL: &str = "http://localhost:11434";
 const LOCAL_MODEL: &str = "gemma4:e4b";
 
-/// What setup still has to do: "first_run" (never finished), "speech_model" (the selected
-/// Whisper model is missing), or "renamed" (data just moved over from Shabdly), or None.
+/// What setup still has to do: "first_run" (never finished), "renamed" (data just moved over
+/// from Shabdly; it also covers a missing speech model), "speech_model" (the selected Whisper
+/// model is missing), or None.
 pub fn setup_needed(dir: &std::path::Path, settings: &Settings, renamed: bool) -> Option<&'static str> {
     if !dir.join("settings.json").exists() {
         Some("first_run")
-    } else if !dir.join("models").join(&settings.whisper_model).exists() {
-        Some("speech_model")
     } else if renamed {
         Some("renamed")
+    } else if !dir.join("models").join(&settings.whisper_model).exists() {
+        Some("speech_model")
     } else {
         None
     }
@@ -647,11 +648,13 @@ mod tests {
     }
 
     #[test]
-    fn setup_needed_reports_renamed_last() {
+    fn setup_needed_renamed_beats_speech_model() {
         let dir = tempfile::tempdir().unwrap();
         let s = Settings::default();
         assert_eq!(setup_needed(dir.path(), &s, true), Some("first_run"));
         std::fs::write(dir.path().join("settings.json"), "{}").unwrap();
+        assert_eq!(setup_needed(dir.path(), &s, true), Some("renamed"));
+        assert_eq!(setup_needed(dir.path(), &s, false), Some("speech_model"));
         std::fs::create_dir_all(dir.path().join("models")).unwrap();
         std::fs::write(dir.path().join("models").join(&s.whisper_model), "x").unwrap();
         assert_eq!(setup_needed(dir.path(), &s, true), Some("renamed"));
