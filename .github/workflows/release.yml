@@ -37,7 +37,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+      # v1: drops caches holding a CPU-native ggml build (see .cargo/config.toml).
       - uses: Swatinem/rust-cache@v2
+        with:
+          prefix-key: v1-rust
       - uses: actions/setup-node@v4
         with:
           node-version: 24
@@ -93,6 +96,8 @@ jobs:
         with:
           releaseId: ${{ needs.create-release.outputs.id }}
           args: --bundles ${{ matrix.bundles }}
+      - shell: bash
+        run: scripts/check-portable-ggml.sh
       # `--bundles dmg` deletes the intermediate .app, so test the helpers inside the DMG that ships.
       - if: runner.os == 'macOS'
         run: |

@@ -1,0 +1,4 @@
+# Build ggml (Whisper) for any CPU, not the build machine's: a native build crashes with
+# STATUS_ILLEGAL_INSTRUCTION on CPUs that lack its instructions. whisper-rs-sys passes GGML_* to CMake.
+[env]
+GGML_NATIVE = "OFF"
