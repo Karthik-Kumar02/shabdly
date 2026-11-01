@@ -6,7 +6,7 @@ set -euo pipefail
 shopt -s nullglob
 failed=0
 checked=0
-for f in "${1:-target}"/*/build/whisper-rs-sys-*/out/build/CMakeCache.txt; do
+for f in "${1:-target}"/*/build/whisper-rs-sys-*/out/build/CMakeCache.txt "${1:-target}"/*/*/build/whisper-rs-sys-*/out/build/CMakeCache.txt; do
   checked=1
   if grep -q '^GGML_NATIVE:BOOL=OFF$' "$f" && grep -q '^GGML_AVX512:BOOL=OFF$' "$f"; then
     echo "ok $f"
