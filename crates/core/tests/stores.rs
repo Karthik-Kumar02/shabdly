@@ -189,3 +189,92 @@ fn backup_v1_once_copies_only_once() {
     store::backup_v1_once(dir.path());
     assert_eq!(std::fs::read_to_string(dir.path().join("settings.v1.json")).unwrap(), "a");
 }
+
+fn old_install(root: &std::path::Path) -> std::path::PathBuf {
+    let old = root.join("old");
+    std::fs::create_dir_all(old.join("models")).unwrap();
+    std::fs::write(old.join("settings.json"), "{}").unwrap();
+    std::fs::write(old.join("dictionary.json"), "[]").unwrap();
+    std::fs::write(old.join("history.json"), "[]").unwrap();
+    std::fs::write(old.join("models/fake.bin"), [1u8, 2, 3, 4]).unwrap();
+    old
+}
+
+#[test]
+fn move_takes_the_whole_old_folder() {
+    let t = tempfile::tempdir().unwrap();
+    let old = old_install(t.path());
+    let new = t.path().join("new");
+    assert_eq!(store::move_old_data_once(&old, &new, || false), store::Move::Moved);
+    for f in ["settings.json", "dictionary.json", "history.json", "models/fake.bin"] {
+        assert!(new.join(f).exists(), "{f}");
+    }
+    assert!(!old.exists());
+}
+
+#[test]
+fn move_skips_when_both_have_settings() {
+    let t = tempfile::tempdir().unwrap();
+    let old = old_install(t.path());
+    let new = t.path().join("new");
+    std::fs::create_dir(&new).unwrap();
+    std::fs::write(new.join("settings.json"), "new").unwrap();
+    assert_eq!(store::move_old_data_once(&old, &new, || false), store::Move::Skipped);
+    assert_eq!(std::fs::read_to_string(old.join("settings.json")).unwrap(), "{}");
+    assert_eq!(std::fs::read_to_string(new.join("settings.json")).unwrap(), "new");
+}
+
+#[test]
+fn move_skips_when_neither_exists() {
+    let t = tempfile::tempdir().unwrap();
+    let (old, new) = (t.path().join("old"), t.path().join("new"));
+    assert_eq!(store::move_old_data_once(&old, &new, || false), store::Move::Skipped);
+    assert!(!old.exists() && !new.exists());
+}
+
+#[test]
+fn move_replaces_an_empty_new_folder() {
+    let t = tempfile::tempdir().unwrap();
+    let old = old_install(t.path());
+    let new = t.path().join("new");
+    std::fs::create_dir(&new).unwrap();
+    assert_eq!(store::move_old_data_once(&old, &new, || false), store::Move::Moved);
+    assert!(new.join("models/fake.bin").exists());
+}
+
+#[test]
+fn move_fails_safe_into_a_non_empty_new_folder() {
+    let t = tempfile::tempdir().unwrap();
+    let old = old_install(t.path());
+    let new = t.path().join("new");
+    std::fs::create_dir(&new).unwrap();
+    std::fs::write(new.join("other.txt"), "x").unwrap();
+    assert!(matches!(store::move_old_data_once(&old, &new, || false), store::Move::Failed(_)));
+    assert!(old.join("settings.json").exists());
+    assert!(!new.join("settings.json").exists());
+}
+
+#[cfg(unix)]
+#[test]
+fn move_fails_under_read_only_parent() {
+    use std::os::unix::fs::PermissionsExt;
+    let t = tempfile::tempdir().unwrap();
+    let p = t.path().join("p");
+    std::fs::create_dir(&p).unwrap();
+    let old = old_install(&p);
+    std::fs::set_permissions(&p, std::fs::Permissions::from_mode(0o555)).unwrap();
+    let r = store::move_old_data_once(&old, &p.join("new"), || false);
+    std::fs::set_permissions(&p, std::fs::Permissions::from_mode(0o755)).unwrap();
+    assert!(matches!(r, store::Move::Failed(_)));
+    assert!(old.join("settings.json").exists());
+}
+
+#[test]
+fn move_waits_while_old_app_runs() {
+    let t = tempfile::tempdir().unwrap();
+    let old = old_install(t.path());
+    let new = t.path().join("new");
+    assert_eq!(store::move_old_data_once(&old, &new, || true), store::Move::OldAppRunning);
+    assert!(old.join("settings.json").exists());
+    assert!(!new.exists());
+}

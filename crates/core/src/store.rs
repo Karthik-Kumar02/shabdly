@@ -53,3 +53,30 @@ pub fn backup_v1_once(dir: &Path) {
         }
     }
 }
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum Move {
+    Moved,
+    Skipped,
+    OldAppRunning,
+    Failed(String),
+}
+
+/// One-time move of the old app's data folder to `new`, by a single `rename`. Nothing is copied
+/// or deleted, except an EMPTY `new` folder (a rename onto a non-empty one fails, leaving both
+/// untouched). `old_app_running` is only asked when there is something to move.
+pub fn move_old_data_once(old: &Path, new: &Path, old_app_running: impl FnOnce() -> bool) -> Move {
+    if !old.join("settings.json").exists() || new.join("settings.json").exists() {
+        return Move::Skipped;
+    }
+    if old_app_running() {
+        return Move::OldAppRunning;
+    }
+    if std::fs::read_dir(new).is_ok_and(|mut d| d.next().is_none()) {
+        let _ = std::fs::remove_dir(new);
+    }
+    match std::fs::rename(old, new) {
+        Ok(()) => Move::Moved,
+        Err(e) => Move::Failed(e.to_string()),
+    }
+}
