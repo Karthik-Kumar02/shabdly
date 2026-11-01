@@ -108,6 +108,8 @@ pub fn show_main(app: &AppHandle) {
 
 fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let data_dir = app.path().app_data_dir()?;
+    // First thing, before anything creates files in the new folder: bring Shabdly's data over.
+    let renamed = migrate::move_old_data(&data_dir);
     std::fs::create_dir_all(data_dir.join("models"))?;
     let first_run = !data_dir.join("settings.json").exists();
     if !first_run {
@@ -188,6 +190,7 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         local: slot,
         engines_dir,
         downloading: AtomicBool::new(false),
+        renamed,
     });
 
     // The windows come after the state their pages call into ("create": false in tauri.conf.json).
@@ -239,7 +242,7 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 
     // Windows has no Dock icon to reopen the window and hides new tray icons in the
     // overflow, so the window shows on every launch there; on macOS only while setup is unfinished.
-    if !cfg!(target_os = "macos") || commands::setup_needed(&data_dir, &settings.lock().unwrap()).is_some() {
+    if !cfg!(target_os = "macos") || commands::setup_needed(&data_dir, &settings.lock().unwrap(), renamed).is_some() {
         show_main(app.handle());
     }
     Ok(())

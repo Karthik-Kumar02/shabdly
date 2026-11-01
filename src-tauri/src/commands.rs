@@ -40,6 +40,8 @@ pub struct AppState {
     pub engines_dir: PathBuf,
     /// Set while a model download (setup or Speed switch) runs.
     pub downloading: AtomicBool,
+    /// This launch moved the old Shabdly data folder over: greet once and re-ask permissions.
+    pub renamed: bool,
 }
 
 type CmdResult<T> = Result<T, String>;
@@ -219,13 +221,15 @@ pub fn overlay_interactive(app: AppHandle, on: bool) {
 const OLLAMA_URL: &str = "http://localhost:11434";
 const LOCAL_MODEL: &str = "gemma4:e4b";
 
-/// What setup still has to do: "first_run" (never finished) or
-/// "speech_model" (the selected Whisper model is missing), or None.
-pub fn setup_needed(dir: &std::path::Path, settings: &Settings) -> Option<&'static str> {
+/// What setup still has to do: "first_run" (never finished), "speech_model" (the selected
+/// Whisper model is missing), or "renamed" (data just moved over from Shabdly), or None.
+pub fn setup_needed(dir: &std::path::Path, settings: &Settings, renamed: bool) -> Option<&'static str> {
     if !dir.join("settings.json").exists() {
         Some("first_run")
     } else if !dir.join("models").join(&settings.whisper_model).exists() {
         Some("speech_model")
+    } else if renamed {
+        Some("renamed")
     } else {
         None
     }
@@ -234,7 +238,7 @@ pub fn setup_needed(dir: &std::path::Path, settings: &Settings) -> Option<&'stat
 #[tauri::command]
 pub fn needs_setup(state: State<AppState>) -> Option<&'static str> {
     let dir = state.deps.data_dir.as_ref()?;
-    setup_needed(dir, &state.deps.settings.lock().unwrap())
+    setup_needed(dir, &state.deps.settings.lock().unwrap(), state.renamed)
 }
 
 /// macOS "Press Globe key to" setting (AppleFnUsageType): anything but "Do
@@ -634,12 +638,24 @@ mod tests {
     fn setup_needed_when_settings_or_speech_model_missing() {
         let dir = tempfile::tempdir().unwrap();
         let s = Settings::default();
-        assert_eq!(setup_needed(dir.path(), &s), Some("first_run"));
+        assert_eq!(setup_needed(dir.path(), &s, false), Some("first_run"));
         std::fs::write(dir.path().join("settings.json"), "{}").unwrap();
-        assert_eq!(setup_needed(dir.path(), &s), Some("speech_model"));
+        assert_eq!(setup_needed(dir.path(), &s, false), Some("speech_model"));
         std::fs::create_dir_all(dir.path().join("models")).unwrap();
         std::fs::write(dir.path().join("models").join(&s.whisper_model), "x").unwrap();
-        assert_eq!(setup_needed(dir.path(), &s), None);
+        assert_eq!(setup_needed(dir.path(), &s, false), None);
+    }
+
+    #[test]
+    fn setup_needed_reports_renamed_last() {
+        let dir = tempfile::tempdir().unwrap();
+        let s = Settings::default();
+        assert_eq!(setup_needed(dir.path(), &s, true), Some("first_run"));
+        std::fs::write(dir.path().join("settings.json"), "{}").unwrap();
+        std::fs::create_dir_all(dir.path().join("models")).unwrap();
+        std::fs::write(dir.path().join("models").join(&s.whisper_model), "x").unwrap();
+        assert_eq!(setup_needed(dir.path(), &s, true), Some("renamed"));
+        assert_eq!(setup_needed(dir.path(), &s, false), None);
     }
 
     #[test]

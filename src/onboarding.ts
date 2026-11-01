@@ -53,6 +53,17 @@ const welcome: Step = (card, next) => {
   card.querySelector("#go")!.addEventListener("click", next);
 };
 
+const RENAMED_LINE = "Shabdly is now Voozi. Your words and settings came with you."; // old-name-ok
+
+// Shown once after the data folder moved over from Shabdly.
+const renamed: Step = (card, next) => {
+  card.innerHTML = `
+    <h2>Welcome to Voozi</h2>
+    <p>${RENAMED_LINE}</p>
+    <button class="primary" id="go">Continue</button>`;
+  card.querySelector("#go")!.addEventListener("click", next);
+};
+
 const microphone: Step = (card, next) => {
   card.innerHTML = `
     <h2>Microphone</h2>
@@ -298,8 +309,14 @@ const practice: Step = async (card, next) => {
 };
 
 // "speech_model": settings exist but the chosen speech model is missing.
-export function startOnboarding(root: HTMLElement, done: () => void, only?: "speech_model") {
-  const steps: Step[] = only ? [download] : [welcome, microphone, ...(isMac ? [accessibility] : []), download, practice];
+// "renamed": the data just moved over from Shabdly; greet and re-ask permissions.
+export function startOnboarding(root: HTMLElement, done: () => void, only?: "speech_model" | "renamed") {
+  const steps: Step[] =
+    only === "renamed"
+      ? [renamed, microphone, ...(isMac ? [accessibility] : [])]
+      : only
+        ? [download]
+        : [welcome, microphone, ...(isMac ? [accessibility] : []), download, practice];
   let i = 0;
   const show = () => {
     if (i >= steps.length) return done();
